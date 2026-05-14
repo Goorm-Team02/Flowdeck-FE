@@ -1,0 +1,15 @@
+commit_regex='^\[(Feat|Fix|Refactor|Style|Design|Docs|Chore|Test|Rename|Remove|Init)\] .+'
+
+if ! grep -qE "$commit_regex" "$1"; then
+  echo "" >&2
+  echo "❌ 커밋 메시지 형식이 올바르지 않습니다." >&2
+  echo "" >&2
+  echo "올바른 형식: [Type] 메시지" >&2
+  echo "사용 가능한 타입: Feat, Fix, Refactor, Style, Design, Docs, Chore, Test, Rename, Remove, Init" >&2
+  echo "" >&2
+  echo "예시:" >&2
+  echo "  [Feat] 로그인 페이지 구현" >&2
+  echo "  [Fix] 탭 닫기 버튼 버그 수정" >&2
+  echo "" >&2
+  exit 1
+fi
