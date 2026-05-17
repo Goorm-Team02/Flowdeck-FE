@@ -1,0 +1,8 @@
+{
+  "name": "Flowdeck",
+  "description": "협업 중심의 클라우드 기반 Web IDE 플랫폼",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
