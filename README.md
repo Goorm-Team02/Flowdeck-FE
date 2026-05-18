@@ -118,7 +118,7 @@ app  ──→  features  ──→  shared
 | 서버에서 가져오는 데이터         | **React Query** | 프로젝트 목록, 회원 정보, 멤버 목록 |
 | 소켓으로 push되는 raw 데이터     | **Jotai**       | 채팅 메시지, 원격 파일 변경 알림    |
 | UI ephemeral 상태                | **Jotai**       | 패널 크기, 모달 열림 여부, 테마     |
-| 클라이언트 도메인 + 액션 많은 곳 | **Zustand**     | 탭 관리, 파일 트리 CRUD             |
+| 클라이언트 도메인 + 액션 많은 곳 | **Jotai**     | 탭 관리, 파일 트리 CRUD             |
 | WebSocket 연결 인스턴스          | **Context API** | STOMP client                        |
 
 ### REST + WebSocket 동기화 패턴
@@ -220,7 +220,6 @@ import { useLocalThing } from "./hooks";
 | ----------------- | -------------- | --------------------------- |
 | 컴포넌트 파일     | PascalCase     | `FileTree.tsx`              |
 | 훅 / 유틸 파일    | camelCase      | `useDebounce.ts`, `path.ts` |
-| store 파일        | `xxx.store.ts` | `tabs.store.ts`             |
 | atom 변수         | `xxxAtom`      | `chatMessagesAtom`          |
 | 타입 / 인터페이스 | PascalCase     | `User`, `ProjectMember`     |
 
@@ -372,6 +371,63 @@ git commit -m "[Feat] 로그인 페이지 구현"
 ```
 
 이 경우 메시지를 수정해서 다시 커밋하면 됩니다.
+
+## 🤖 Claude Code
+
+이 프로젝트는 Claude Code 사용을 위해 설정되어 있습니다.
+프로젝트 루트의 `CLAUDE.md`에 컨벤션이 정리되어 있어 Claude가 매 세션마다 자동으로 인식합니다.
+
+### 설치
+
+Node.js 18+ 필요.
+
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+### 시작하기
+
+프로젝트 루트에서:
+
+```bash
+claude
+```
+
+처음 실행 시 브라우저로 인증 페이지가 열립니다. Claude 계정으로 로그인하면 됩니다.
+
+### 자주 쓰는 명령어
+
+| 명령어 | 설명 |
+|---|---|
+| `/memory` | Claude가 이 프로젝트에 대해 학습한 내용 확인 |
+| `/clear` | 현재 세션 컨텍스트 초기화 |
+| `/compact` | 긴 세션을 요약해서 컨텍스트 절약 |
+| `Esc Esc` | 직전 메시지로 되돌아가기 |
+| `Shift + Tab` | 모드 전환 (Plan / Auto-accept 등) |
+
+### 주의
+
+- 개인 설정/세션 캐시는 `.claude/` 폴더에 저장되며 `.gitignore`로 제외되어 있습니다. (머신 로컬 데이터라 공유하면 안 됩니다.)
+- `CLAUDE.md`는 팀 공통 컨벤션이므로 수정 시 PR로 합의 후 머지합니다.
+- 새 기능/규칙이 추가되면 `CLAUDE.md`도 같이 갱신해주세요. Claude는 이 파일이 갱신되어야 새 규칙을 따릅니다.
+
+## 🌿 브랜치 이름 규칙
+
+`type/이슈번호-짧은-설명` 형식으로 작성합니다. type은 커밋 메시지 prefix와 동일합니다.
+
+예시:
+- `feat/12-login-page`
+- `fix/23-tab-close-bug`
+- `chore/5-claude-code-setup`
+- `refactor/41-extract-tree-utils`
+
+**규칙:**
+- 소문자 + kebab-case (`login-page` ⭕, `loginPage` ❌)
+- 영어로 작성
+- 설명은 2-4 단어로 간결하게
+- 이슈가 있는 작업은 반드시 이슈 번호 포함
+
+**장기 브랜치:** `main` (배포), `develop` (개발 통합)
 
 ---
 
