@@ -1,10 +1,40 @@
 @import 'tailwindcss';
 
 @theme {
+  /* 기본 배경 */
   --color-bg-primary: #1e1e1e;
   --color-bg-secondary: #252526;
   --color-bg-tertiary: #333333;
+  --color-bg-activity: #2c2c2c;
+  --color-bg-selected: #37373d;
+  --color-bg-hover: #2a2d2e;
+
+  /* 경계선 */
   --color-border: #3e3e42;
+
+  /* 텍스트 */
   --color-text-primary: #cccccc;
+  --color-text-muted: #858585;
+
+  /* 강조색 */
   --color-accent: #007acc;
+
+  /* 파일트리 아이콘 */
+  --color-icon-folder: #dcb67a;
+  --color-icon-ts: #75beff;
+  --color-icon-js: #e8d44d;
+  --color-icon-json: #e8b84b;
+  --color-icon-md: #84cc16;
+
+  /* 터미널 */
+  --color-terminal-green: #a8cc8c;
+  --color-terminal-blue: #6c9ef8;
+
+  /* 코드 토큰 */
+  --color-token-keyword: #c586c0;
+  --color-token-keyword-blue: #569cd6;
+  --color-token-variable: #9cdcfe;
+  --color-token-string: #ce9178;
+  --color-token-function: #dcdcaa;
+  --color-token-type: #4ec9b0;
 }
