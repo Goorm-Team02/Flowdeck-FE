@@ -1,3 +1,8 @@
+import { useEffect, useState } from 'react'
+import { useAtom } from 'jotai'
+import { historyOpenAtom } from '../stores/sidebarAtom'
+import FileHistoryPanel from './FileHistoryPanel'
+
 type Token = { text: string; color: string }
 
 const T = {
@@ -93,45 +98,102 @@ const CODE_LINES: { num: number; tokens: Token[] }[] = [
 ]
 
 export default function EditorArea() {
+  const [historyOpen, setHistoryOpen] = useAtom(historyOpenAtom)
+  const [activeTab, setActiveTab] = useState<'code' | 'history'>('code')
+
+  useEffect(() => {
+    if (historyOpen) setActiveTab('history')
+  }, [historyOpen])
+
+  const closeHistory = () => {
+    setHistoryOpen(false)
+    setActiveTab('code')
+  }
+
   return (
     <div className="flex-1 flex flex-col bg-bg-primary overflow-hidden min-w-0">
       {/* Tab bar */}
       <div className="flex items-end bg-bg-secondary border-b border-border shrink-0 h-9">
-        <div className="flex items-center gap-2 px-4 h-full bg-bg-primary border-t-2 border-t-accent text-text-primary text-[13px]">
+        <button
+          onClick={() => setActiveTab('code')}
+          className={`flex items-center gap-2 px-4 h-full text-[13px] transition-colors ${
+            activeTab === 'code'
+              ? 'bg-bg-primary border-t-2 border-t-accent text-text-primary'
+              : 'text-text-primary/50 hover:text-text-primary/80 hover:bg-bg-primary/50'
+          }`}
+        >
           <span>Editor.jsx</span>
-          <button className="text-text-primary/30 hover:text-text-primary/70 text-sm leading-none transition-colors">
+          <span className="text-text-primary/30 hover:text-text-primary/70 text-sm leading-none transition-colors">
             ×
-          </button>
-        </div>
-      </div>
+          </span>
+        </button>
 
-      {/* Code editor */}
-      <div className="flex-1 overflow-auto">
-        <div className="flex min-h-full">
-          <div
-            className="select-none text-right text-text-muted text-[13px] leading-[1.6] bg-bg-primary py-3 shrink-0"
-            style={{ minWidth: '44px', paddingRight: '12px', paddingLeft: '8px' }}
+        {historyOpen && (
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`flex items-center gap-2 px-4 h-full text-[13px] transition-colors ${
+              activeTab === 'history'
+                ? 'bg-bg-primary border-t-2 border-t-accent text-text-primary'
+                : 'text-text-primary/50 hover:text-text-primary/80 hover:bg-bg-primary/50'
+            }`}
           >
-            {CODE_LINES.map((line) => (
-              <div key={line.num}>{line.num}</div>
-            ))}
-          </div>
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              className="text-text-primary/60"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+            <span>Editor.jsx — 버전</span>
+            <span
+              onClick={(e) => {
+                e.stopPropagation()
+                closeHistory()
+              }}
+              className="text-text-primary/30 hover:text-text-primary/70 text-sm leading-none transition-colors"
+            >
+              ×
+            </span>
+          </button>
+        )}
+      </div>
 
-          <div className="flex-1 py-3 pr-8 overflow-x-auto font-mono text-[13px] leading-[1.6]">
-            {CODE_LINES.map((line) => (
-              <div key={line.num} className="whitespace-pre">
-                {line.tokens.length === 0
-                  ? ' '
-                  : line.tokens.map((token, i) => (
-                      <span key={i} style={{ color: token.color }}>
-                        {token.text}
-                      </span>
-                    ))}
-              </div>
-            ))}
+      {/* Main content */}
+      {activeTab === 'code' ? (
+        <div className="flex-1 overflow-auto">
+          <div className="flex min-h-full">
+            <div
+              className="select-none text-right text-text-muted text-[13px] leading-[1.6] bg-bg-primary py-3 shrink-0"
+              style={{ minWidth: '44px', paddingRight: '12px', paddingLeft: '8px' }}
+            >
+              {CODE_LINES.map((line) => (
+                <div key={line.num}>{line.num}</div>
+              ))}
+            </div>
+
+            <div className="flex-1 py-3 pr-8 overflow-x-auto font-mono text-[13px] leading-[1.6]">
+              {CODE_LINES.map((line) => (
+                <div key={line.num} className="whitespace-pre">
+                  {line.tokens.length === 0
+                    ? ' '
+                    : line.tokens.map((token, i) => (
+                        <span key={i} style={{ color: token.color }}>
+                          {token.text}
+                        </span>
+                      ))}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <FileHistoryPanel />
+      )}
 
       {/* Terminal panel */}
       <div className="h-44 flex flex-col border-t border-border bg-bg-secondary shrink-0">
