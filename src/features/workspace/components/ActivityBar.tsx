@@ -1,7 +1,11 @@
-const TOP_ICONS = [
+import { useAtom } from 'jotai'
+import { activeSidebarPanelAtom, historyOpenAtom } from '../stores/sidebarAtom'
+import type { SidebarPanel } from '../stores/sidebarAtom'
+
+const SIDEBAR_ICONS: { id: SidebarPanel; label: string; path: React.ReactNode }[] = [
   {
+    id: 'filetree',
     label: '탐색기',
-    active: true,
     path: (
       <>
         <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
@@ -10,6 +14,7 @@ const TOP_ICONS = [
     ),
   },
   {
+    id: 'search',
     label: '검색',
     path: (
       <>
@@ -18,41 +23,31 @@ const TOP_ICONS = [
       </>
     ),
   },
-  {
-    label: '소스 제어',
-    path: (
-      <>
-        <circle cx="12" cy="18" r="3" />
-        <circle cx="6" cy="6" r="3" />
-        <circle cx="18" cy="6" r="3" />
-        <path d="M18 9v1a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9" />
-        <line x1="12" y1="12" x2="12" y2="15" />
-      </>
-    ),
-  },
-  {
-    label: '멤버',
-    path: (
-      <>
-        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-        <circle cx="9" cy="7" r="4" />
-        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-      </>
-    ),
-  },
 ]
 
+const HISTORY_ICON_PATH = (
+  <>
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12 6 12 12 16 14" />
+  </>
+)
+
+import type React from 'react'
+
 export default function ActivityBar() {
+  const [activeSidebar, setActiveSidebar] = useAtom(activeSidebarPanelAtom)
+  const [historyOpen, setHistoryOpen] = useAtom(historyOpenAtom)
+
   return (
     <div className="w-12 flex flex-col items-center py-2 bg-bg-activity border-r border-border shrink-0">
       <div className="flex flex-col items-center gap-1 flex-1">
-        {TOP_ICONS.map(({ label, active, path }) => (
+        {SIDEBAR_ICONS.map(({ id, label, path }) => (
           <button
-            key={label}
+            key={id}
             title={label}
+            onClick={() => setActiveSidebar(id)}
             className={`w-10 h-10 flex items-center justify-center rounded transition-colors ${
-              active
+              activeSidebar === id && !historyOpen
                 ? 'text-text-primary bg-bg-secondary/50'
                 : 'text-text-primary/40 hover:text-text-primary/80 hover:bg-bg-secondary/30'
             }`}
@@ -69,6 +64,27 @@ export default function ActivityBar() {
             </svg>
           </button>
         ))}
+
+        <button
+          title="히스토리"
+          onClick={() => setHistoryOpen((prev) => !prev)}
+          className={`w-10 h-10 flex items-center justify-center rounded transition-colors ${
+            historyOpen
+              ? 'text-text-primary bg-bg-secondary/50'
+              : 'text-text-primary/40 hover:text-text-primary/80 hover:bg-bg-secondary/30'
+          }`}
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+          >
+            {HISTORY_ICON_PATH}
+          </svg>
+        </button>
       </div>
 
       <button
