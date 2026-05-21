@@ -1,101 +1,19 @@
 import { useEffect, useState } from 'react'
 import { useAtom } from 'jotai'
+import MonacoEditor from '@monaco-editor/react'
 import { historyOpenAtom } from '../stores/sidebarAtom'
 import FileHistoryPanel from './FileHistoryPanel'
 
-type Token = { text: string; color: string }
+const INITIAL_CODE = `import React, { useEffect, useRef } from 'react'
+import MonacoEditor from '@monaco-editor/react'
+import * as Y from 'yjs'
+import { WebsocketProvider } from 'y-websocket'
 
-const T = {
-  keyword: 'var(--color-token-keyword)',
-  keywordBlue: 'var(--color-token-keyword-blue)',
-  variable: 'var(--color-token-variable)',
-  string: 'var(--color-token-string)',
-  fn: 'var(--color-token-function)',
-  type: 'var(--color-token-type)',
-  plain: 'var(--color-text-primary)',
-}
-
-const CODE_LINES: { num: number; tokens: Token[] }[] = [
-  {
-    num: 1,
-    tokens: [
-      { text: 'import ', color: T.keyword },
-      { text: 'React, { useEffect, useRef } ', color: T.variable },
-      { text: 'from ', color: T.keyword },
-      { text: "'react'", color: T.string },
-    ],
-  },
-  {
-    num: 2,
-    tokens: [
-      { text: 'import ', color: T.keyword },
-      { text: 'MonacoEditor ', color: T.variable },
-      { text: 'from ', color: T.keyword },
-      { text: "'@monaco-editor/react'", color: T.string },
-    ],
-  },
-  {
-    num: 3,
-    tokens: [
-      { text: 'import ', color: T.keyword },
-      { text: '* as Y ', color: T.variable },
-      { text: 'from ', color: T.keyword },
-      { text: "'yjs'", color: T.string },
-    ],
-  },
-  {
-    num: 4,
-    tokens: [
-      { text: 'import ', color: T.keyword },
-      { text: '{ WebsocketProvider } ', color: T.variable },
-      { text: 'from ', color: T.keyword },
-      { text: "'y-websocket'", color: T.string },
-    ],
-  },
-  { num: 5, tokens: [] },
-  {
-    num: 6,
-    tokens: [
-      { text: 'export default function ', color: T.keywordBlue },
-      { text: 'Editor', color: T.fn },
-      { text: '() {', color: T.plain },
-    ],
-  },
-  {
-    num: 7,
-    tokens: [
-      { text: '  const ', color: T.keywordBlue },
-      { text: 'ydoc ', color: T.variable },
-      { text: '= ', color: T.plain },
-      { text: 'useRef', color: T.fn },
-      { text: '(new ', color: T.plain },
-      { text: 'Y.Doc', color: T.type },
-      { text: '()).current', color: T.plain },
-    ],
-  },
-  {
-    num: 8,
-    tokens: [
-      { text: '  const ', color: T.keywordBlue },
-      { text: 'provider ', color: T.variable },
-      { text: '= new ', color: T.plain },
-      { text: 'WebsocketProvider', color: T.type },
-      { text: '(url, room, ydoc)', color: T.plain },
-    ],
-  },
-  {
-    num: 9,
-    tokens: [
-      { text: '  return ', color: T.keywordBlue },
-      { text: '<MonacoEditor ', color: T.type },
-      { text: 'language', color: T.variable },
-      { text: '=', color: T.plain },
-      { text: '"javascript"', color: T.string },
-      { text: ' />', color: T.type },
-    ],
-  },
-  { num: 10, tokens: [{ text: '}', color: T.plain }] },
-]
+export default function Editor() {
+  const ydoc = useRef(new Y.Doc()).current
+  const provider = new WebsocketProvider(url, room, ydoc)
+  return <MonacoEditor language="javascript" />
+}`
 
 export default function EditorArea() {
   const [historyOpen, setHistoryOpen] = useAtom(historyOpenAtom)
@@ -165,31 +83,27 @@ export default function EditorArea() {
 
       {/* Main content */}
       {activeTab === 'code' ? (
-        <div className="flex-1 overflow-auto">
-          <div className="flex min-h-full">
-            <div
-              className="select-none text-right text-text-muted text-[13px] leading-[1.6] bg-bg-primary py-3 shrink-0"
-              style={{ minWidth: '44px', paddingRight: '12px', paddingLeft: '8px' }}
-            >
-              {CODE_LINES.map((line) => (
-                <div key={line.num}>{line.num}</div>
-              ))}
-            </div>
-
-            <div className="flex-1 py-3 pr-8 overflow-x-auto font-mono text-[13px] leading-[1.6]">
-              {CODE_LINES.map((line) => (
-                <div key={line.num} className="whitespace-pre">
-                  {line.tokens.length === 0
-                    ? ' '
-                    : line.tokens.map((token, i) => (
-                        <span key={i} style={{ color: token.color }}>
-                          {token.text}
-                        </span>
-                      ))}
-                </div>
-              ))}
-            </div>
-          </div>
+        <div className="flex-1 overflow-hidden">
+          <MonacoEditor
+            height="100%"
+            defaultLanguage="javascript"
+            defaultValue={INITIAL_CODE}
+            theme="vs-dark"
+            options={{
+              fontSize: 13,
+              lineHeight: 22,
+              fontFamily: "'Menlo', 'Monaco', 'Courier New', monospace",
+              minimap: { enabled: false },
+              scrollBeyondLastLine: false,
+              tabSize: 2,
+              wordWrap: 'on',
+              renderLineHighlight: 'line',
+              overviewRulerLanes: 0,
+              hideCursorInOverviewRuler: true,
+              overviewRulerBorder: false,
+              padding: { top: 12, bottom: 12 },
+            }}
+          />
         </div>
       ) : (
         <FileHistoryPanel />
