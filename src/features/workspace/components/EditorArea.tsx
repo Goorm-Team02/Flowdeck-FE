@@ -3,6 +3,7 @@ import { useAtom } from 'jotai'
 import MonacoEditor from '@monaco-editor/react'
 import { historyOpenAtom } from '../stores/sidebarAtom'
 import FileHistoryPanel from './FileHistoryPanel'
+import TerminalPanel from './TerminalPanel'
 
 const INITIAL_CODE = `import React, { useEffect, useRef } from 'react'
 import MonacoEditor from '@monaco-editor/react'
@@ -109,45 +110,7 @@ export default function EditorArea() {
         <FileHistoryPanel />
       )}
 
-      {/* Terminal panel */}
-      <div className="h-44 flex flex-col border-t border-border bg-bg-secondary shrink-0">
-        <div className="flex items-center justify-between px-3 h-8 border-b border-border shrink-0">
-          <div className="flex items-center gap-3">
-            <span className="text-[11px] font-semibold text-text-primary/40 uppercase tracking-wider">
-              터미널
-            </span>
-            <span className="text-[12px] text-text-primary/70 bg-bg-tertiary px-2 py-0.5 rounded">
-              npm run dev
-            </span>
-          </div>
-          <button className="text-text-primary/30 hover:text-text-primary/60 transition-colors text-sm leading-none">
-            ×
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-auto p-3 font-mono text-[12px] bg-bg-primary">
-          <div className="space-y-0.5">
-            <div>
-              <span className="text-terminal-green">react-dashboard</span>
-              <span className="text-text-primary"> npm run dev</span>
-            </div>
-            <div className="text-terminal-blue">&gt; vite</div>
-            <div className="h-2" />
-            <div className="text-terminal-green">VITE v6.3.5 ready in 412 ms</div>
-            <div className="h-1" />
-            <div>
-              <span className="text-terminal-blue">➜</span>
-              <span className="text-text-primary"> Local: </span>
-              <span className="text-terminal-blue underline">http://localhost:5173/</span>
-            </div>
-            <div className="mt-2 flex items-center">
-              <span className="text-terminal-green">react-dashboard</span>
-              <span className="text-text-primary"> |</span>
-              <span className="ml-0.5 text-text-primary animate-pulse">▋</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      <TerminalPanel />
     </div>
   )
 }

@@ -1,7 +1,20 @@
+import { useAtom, useSetAtom } from 'jotai'
 import { useNavigate } from 'react-router-dom'
+import { isRunningAtom, runTriggerAtom, stopTriggerAtom } from '../stores/terminalAtom'
 
 export default function TopBar() {
   const navigate = useNavigate()
+  const [isRunning] = useAtom(isRunningAtom)
+  const setRunTrigger = useSetAtom(runTriggerAtom)
+  const setStopTrigger = useSetAtom(stopTriggerAtom)
+
+  const handleRunClick = () => {
+    if (isRunning) {
+      setStopTrigger((prev) => prev + 1)
+    } else {
+      setRunTrigger((prev) => prev + 1)
+    }
+  }
 
   return (
     <header className="h-10 flex items-center justify-between px-3 bg-bg-secondary border-b border-border shrink-0">
@@ -53,8 +66,29 @@ export default function TopBar() {
           유저
         </button>
 
-        <button className="px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-500 transition-colors font-medium">
-          실행
+        <button
+          onClick={handleRunClick}
+          className={`flex items-center gap-1.5 px-3 py-1 text-sm text-white rounded transition-colors font-medium ${
+            isRunning
+              ? 'bg-red-600 hover:bg-red-500'
+              : 'bg-green-600 hover:bg-green-500'
+          }`}
+        >
+          {isRunning ? (
+            <>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="4" y="4" width="16" height="16" rx="1" />
+              </svg>
+              정지
+            </>
+          ) : (
+            <>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5 3 19 12 5 21 5 3" />
+              </svg>
+              실행
+            </>
+          )}
         </button>
       </div>
     </header>
