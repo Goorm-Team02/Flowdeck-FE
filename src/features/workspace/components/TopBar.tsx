@@ -1,5 +1,6 @@
 import { useAtom, useSetAtom } from 'jotai'
 import { useNavigate } from 'react-router-dom'
+import { memberModalOpenAtom } from '../stores/memberModalAtom'
 import { isRunningAtom, runTriggerAtom, stopTriggerAtom } from '../stores/terminalAtom'
 
 export default function TopBar() {
@@ -7,6 +8,7 @@ export default function TopBar() {
   const [isRunning] = useAtom(isRunningAtom)
   const setRunTrigger = useSetAtom(runTriggerAtom)
   const setStopTrigger = useSetAtom(stopTriggerAtom)
+  const setMemberModalOpen = useSetAtom(memberModalOpenAtom)
 
   const handleRunClick = () => {
     if (isRunning) {
@@ -18,6 +20,7 @@ export default function TopBar() {
 
   return (
     <header className="h-10 flex items-center justify-between px-3 bg-bg-secondary border-b border-border shrink-0">
+      {/* Left */}
       <div className="flex items-center gap-2 text-sm">
         <button
           onClick={() => navigate('/')}
@@ -32,8 +35,10 @@ export default function TopBar() {
         </span>
       </div>
 
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2">
+      {/* Right */}
+      <div className="flex items-center gap-1">
+        {/* Avatar stack */}
+        <div className="flex items-center gap-2 mr-2">
           <div className="flex -space-x-1.5">
             <div className="w-7 h-7 rounded-full bg-accent flex items-center justify-center text-white text-[10px] font-bold ring-2 ring-bg-secondary z-10">
               JM
@@ -45,14 +50,36 @@ export default function TopBar() {
           <span className="text-sm text-text-primary/50">인원</span>
         </div>
 
-        <button className="p-1.5 text-text-primary/50 hover:text-text-primary hover:bg-bg-tertiary rounded transition-colors">
+        {/* 멤버 */}
+        <button
+          onClick={() => setMemberModalOpen(true)}
+          className="flex items-center gap-1.5 px-2.5 py-1 text-sm text-text-primary/60 hover:text-text-primary hover:bg-bg-tertiary rounded transition-colors"
+        >
           <svg
             width="15"
             height="15"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            strokeWidth="2"
+            strokeWidth="1.8"
+          >
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+          멤버
+        </button>
+
+        {/* 공유 */}
+        <button className="flex items-center gap-1.5 px-2.5 py-1 text-sm text-text-primary/60 hover:text-text-primary hover:bg-bg-tertiary rounded transition-colors">
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
           >
             <circle cx="18" cy="5" r="3" />
             <circle cx="6" cy="12" r="3" />
@@ -60,18 +87,14 @@ export default function TopBar() {
             <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
             <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
           </svg>
+          공유
         </button>
 
-        <button className="px-3 py-1 text-sm text-text-primary border border-border rounded hover:bg-bg-tertiary transition-colors">
-          유저
-        </button>
-
+        {/* 실행 / 정지 */}
         <button
           onClick={handleRunClick}
-          className={`flex items-center gap-1.5 px-3 py-1 text-sm text-white rounded transition-colors font-medium ${
-            isRunning
-              ? 'bg-red-600 hover:bg-red-500'
-              : 'bg-green-600 hover:bg-green-500'
+          className={`flex items-center gap-1.5 px-3 py-1 ml-1 text-sm text-white rounded transition-colors font-medium ${
+            isRunning ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500'
           }`}
         >
           {isRunning ? (
