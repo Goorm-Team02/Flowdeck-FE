@@ -14,7 +14,7 @@
 
 @layer base {
   body {
-    @apply bg-[#1e1e1e] text-[#cccccc] font-sans antialiased;
+    @apply bg-bg-primary text-text-primary font-sans antialiased;
     margin: 0;
     height: 100%;
   }

@@ -1,0 +1,2534 @@
+import { RouterProvider } from 'react-router-dom'
+import { router } from './app/router'
+
+export default function App() {
+  return <RouterProvider router={router} />
+}
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+
+import App from '@/app/App'
+import { AppProviders } from '@/app/providers'
+import '@/styles/index.css'
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <AppProviders>
+      <App />
+    </AppProviders>
+  </StrictMode>,
+)
+// src/app/App.tsx
+import { RouterProvider } from 'react-router-dom'
+
+import { router } from './router'
+
+export default function App() {
+  return <RouterProvider router={router} />
+}
+// app/providers/index.tsx
+import { type ReactNode } from 'react'
+
+import { QueryProvider } from './QueryProvider'
+import { SocketProvider } from './SocketProvider'
+
+interface Props {
+  children: ReactNode
+}
+
+export function AppProviders({ children }: Props) {
+  return (
+    <QueryProvider>
+      <SocketProvider>{children}</SocketProvider>
+    </QueryProvider>
+  )
+}
+import { useCallback, useEffect, useRef } from 'react'
+import type { ReactNode } from 'react'
+
+import type { Client, IMessage, StompSubscription } from '@stomp/stompjs'
+import { useSetAtom } from 'jotai'
+
+import { tokenStorage } from '@/shared/api/client'
+import { createStompClient } from '@/shared/socket/client'
+import { SocketContext } from '@/shared/socket/context'
+import { socketStatusAtom } from '@/shared/socket/socketStatusAtom'
+
+interface Props {
+  children: ReactNode
+}
+
+export function SocketProvider({ children }: Props) {
+  const clientRef = useRef<Client | null>(null)
+  const setStatus = useSetAtom(socketStatusAtom)
+
+  const subscribe = useCallback(
+    (topic: string, callback: (msg: IMessage) => void): StompSubscription | undefined =>
+      clientRef.current?.subscribe(topic, callback),
+    [],
+  )
+
+  const publish = useCallback((destination: string, body: unknown) => {
+    clientRef.current?.publish({ destination, body: JSON.stringify(body) })
+  }, [])
+
+  useEffect(() => {
+    const stompClient = createStompClient(tokenStorage.getAccess)
+    clientRef.current = stompClient
+
+    stompClient.onConnect = () => setStatus('connected')
+    stompClient.onDisconnect = () => setStatus('disconnected')
+    stompClient.onStompError = (frame) => {
+      console.error('[STOMP] error', frame.headers['message'])
+      setStatus('disconnected')
+    }
+    stompClient.onWebSocketError = (event) => {
+      console.error('[STOMP] ws error', event)
+      setStatus('disconnected')
+    }
+
+    setStatus('connecting')
+    stompClient.activate()
+
+    return () => {
+      stompClient.deactivate()
+      clientRef.current = null
+      setStatus('disconnected')
+    }
+  }, [setStatus])
+
+  return <SocketContext.Provider value={{ subscribe, publish }}>{children}</SocketContext.Provider>
+}
+// app/providers/QueryProvider.tsx
+import { type ReactNode, useState } from 'react'
+
+import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
+import { isApiError, isNetworkError } from '@/shared/api/errors'
+
+interface Props {
+  children: ReactNode
+}
+
+function handleGlobalError(error: unknown) {
+  if (isNetworkError(error)) {
+    console.warn('[Network]', error.message)
+    return
+  }
+  if (isApiError(error) && error.status >= 500) {
+    console.error('[Server Error]', error.code, error.message)
+  }
+}
+
+export function QueryProvider({ children }: Props) {
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        queryCache: new QueryCache({ onError: handleGlobalError }),
+        mutationCache: new MutationCache({ onError: handleGlobalError }),
+        defaultOptions: {
+          queries: {
+            staleTime: 1000 * 60,
+            gcTime: 1000 * 60 * 5,
+            refetchOnWindowFocus: false,
+            retry: 1,
+          },
+          mutations: {
+            retry: 0,
+          },
+        },
+      }),
+  )
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      {children}
+      {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
+    </QueryClientProvider>
+  )
+}
+// src/app/router.tsx
+import { createBrowserRouter } from 'react-router-dom'
+
+import NotFoundPage from './routes/NotFoundPage'
+import ProjectListPage from './routes/ProjectListPage'
+import WorkspacePage from './routes/WorkspacePage'
+
+export const router = createBrowserRouter([
+  {
+    path: '/',
+    element: <ProjectListPage />,
+  },
+  {
+    path: '/projects/:projectId',
+    element: <WorkspacePage />,
+  },
+  {
+    path: '*',
+    element: <NotFoundPage />,
+  },
+])
+export default function LoginPage() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-bg-primary font-sans">
+      <div className="w-full max-w-md rounded-xl bg-bg-secondary p-10 shadow-2xl border border-border">
+        <div className="mb-10 text-center">
+          <div className="mx-auto mb-4 w-12 h-12 bg-accent rounded-lg flex items-center justify-center font-bold text-white text-2xl shadow-lg">F</div>
+          <h1 className="text-3xl font-bold text-white tracking-tight">Welcome Back</h1>
+          <p className="mt-2 text-text-muted text-sm tracking-wide">Enter your credentials to access Flowdeck</p>
+        </div>
+        
+        <form className="space-y-6">
+          <div>
+            <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-2">Email Address</label>
+            <input 
+              type="email" 
+              className="w-full rounded-md bg-bg-primary border border-border p-3 text-sm text-white focus:border-accent focus:ring-1 focus:ring-accent outline-none transition-all placeholder:text-bg-tertiary"
+              placeholder="name@company.com" 
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-2">Password</label>
+            <input 
+              type="password" 
+              className="w-full rounded-md bg-bg-primary border border-border p-3 text-sm text-white focus:border-accent focus:ring-1 focus:ring-accent outline-none transition-all placeholder:text-bg-tertiary"
+              placeholder="••••••••" 
+            />
+          </div>
+          
+          <div className="flex items-center justify-between text-xs">
+            <label className="flex items-center gap-2 cursor-pointer text-text-muted hover:text-white transition-colors font-medium">
+              <input type="checkbox" className="rounded border-border bg-bg-primary text-accent focus:ring-accent accent-accent" />
+              Remember me
+            </label>
+            <a href="#" className="text-accent hover:text-accent-hover font-bold tracking-tight">Forgot password?</a>
+          </div>
+
+          <button className="w-full rounded-md bg-accent p-3.5 font-bold text-white hover:bg-accent-hover transition-all shadow-lg active:scale-95 transform">
+            Sign In
+          </button>
+        </form>
+        
+        <div className="mt-8 flex items-center gap-4 text-text-muted text-xs font-bold uppercase tracking-widest before:content-[''] before:flex-1 before:h-[1px] before:bg-border after:content-[''] after:flex-1 after:h-[1px] after:bg-border">
+          OR
+        </div>
+
+        <p className="mt-8 text-center text-sm text-text-muted">
+          New to Flowdeck? <a href="/signup" className="text-accent hover:text-accent-hover font-bold transition-colors ml-1">Create an account</a>
+        </p>
+      </div>
+    </div>
+  )
+}
+import WorkspaceLayout from '@/features/workspace/components/WorkspaceLayout'
+
+export default function WorkspacePage() {
+  return <WorkspaceLayout />
+}
+// src/app/routes/ProjectListPage.tsx
+export default function ProjectListPage() {
+  return (
+    <div className="p-8">
+      <h1 className="text-2xl font-bold">My Projects</h1>
+    </div>
+  )
+}
+export default function SignupPage() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-bg-primary font-sans">
+      <div className="w-full max-w-md rounded-xl bg-bg-secondary p-10 shadow-2xl border border-border">
+        <div className="mb-10 text-center">
+          <div className="mx-auto mb-4 w-12 h-12 bg-accent rounded-lg flex items-center justify-center font-bold text-white text-2xl shadow-lg">F</div>
+          <h1 className="text-3xl font-bold text-white tracking-tight">Create Account</h1>
+          <p className="mt-2 text-text-muted text-sm tracking-wide">Join Flowdeck for collaborative coding</p>
+        </div>
+
+        <form className="space-y-6">
+          <div>
+            <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-2">Full Name</label>
+            <input 
+              type="text" 
+              className="w-full rounded-md bg-bg-primary border border-border p-3 text-sm text-white focus:border-accent focus:ring-1 focus:ring-accent outline-none transition-all placeholder:text-bg-tertiary"
+              placeholder="John Doe" 
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-2">Email Address</label>
+            <input 
+              type="email" 
+              className="w-full rounded-md bg-bg-primary border border-border p-3 text-sm text-white focus:border-accent focus:ring-1 focus:ring-accent outline-none transition-all placeholder:text-bg-tertiary"
+              placeholder="name@company.com" 
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-2">Password</label>
+            <input 
+              type="password" 
+              className="w-full rounded-md bg-bg-primary border border-border p-3 text-sm text-white focus:border-accent focus:ring-1 focus:ring-accent outline-none transition-all placeholder:text-bg-tertiary"
+              placeholder="••••••••" 
+            />
+          </div>
+          <button className="w-full rounded-md bg-accent p-3.5 font-bold text-white hover:bg-accent-hover transition-all shadow-lg active:scale-95 transform mt-2">
+            Create Account
+          </button>
+        </form>
+        
+        <p className="mt-8 text-center text-sm text-text-muted">
+          Already have an account? <a href="/login" className="text-accent hover:text-accent-hover font-bold transition-colors ml-1">Sign in instead</a>
+        </p>
+      </div>
+    </div>
+  )
+}
+// src/app/routes/NotFoundPage.tsx
+import { Link } from 'react-router-dom'
+
+export default function NotFoundPage() {
+  return (
+    <div className="flex h-screen flex-col items-center justify-center gap-4">
+      <h1 className="text-2xl">404 - Not Found</h1>
+      <Link to="/" className="text-blue-500 underline">
+        Go home
+      </Link>
+    </div>
+  )
+}
+import { create } from 'zustand'
+
+interface AuthState {
+  user: { name: string; email: string } | null
+  isLoggedIn: boolean
+  login: (name: string, email: string) => void
+  logout: () => void
+}
+
+export const useAuthStore = create<AuthState>((set) => ({
+  user: null,
+  isLoggedIn: false,
+  login: (name, email) => set({ user: { name, email }, isLoggedIn: true }),
+  logout: () => set({ user: null, isLoggedIn: false }),
+}))
+import { atom } from 'jotai'
+
+export const isRunningAtom = atom<boolean>(false)
+export const runTriggerAtom = atom<number>(0)
+export const stopTriggerAtom = atom<number>(0)
+import { atom } from 'jotai'
+
+export type SidebarPanel = 'filetree' | 'search'
+
+export const activeSidebarPanelAtom = atom<SidebarPanel>('filetree')
+export const historyOpenAtom = atom<boolean>(false)
+import { atom } from 'jotai'
+
+export const memberModalOpenAtom = atom<boolean>(false)
+import { useAtom, useSetAtom } from 'jotai'
+import { useNavigate } from 'react-router-dom'
+import { memberModalOpenAtom } from '../stores/memberModalAtom'
+import { isRunningAtom, runTriggerAtom, stopTriggerAtom } from '../stores/terminalAtom'
+
+export default function TopBar() {
+  const navigate = useNavigate()
+  const [isRunning] = useAtom(isRunningAtom)
+  const setRunTrigger = useSetAtom(runTriggerAtom)
+  const setStopTrigger = useSetAtom(stopTriggerAtom)
+  const setMemberModalOpen = useSetAtom(memberModalOpenAtom)
+
+  const handleRunClick = () => {
+    if (isRunning) {
+      setStopTrigger((prev) => prev + 1)
+    } else {
+      setRunTrigger((prev) => prev + 1)
+    }
+  }
+
+  return (
+    <header className="h-10 flex items-center justify-between px-3 bg-bg-secondary border-b border-border shrink-0">
+      {/* Left */}
+      <div className="flex items-center gap-2 text-sm">
+        <button
+          onClick={() => navigate('/')}
+          className="text-text-primary/50 hover:text-text-primary transition-colors cursor-pointer"
+        >
+          프로젝트 목록
+        </button>
+        <span className="text-text-primary/30">/</span>
+        <span className="text-text-primary font-medium">react-dashboard</span>
+        <span className="px-1.5 py-0.5 text-xs rounded bg-bg-tertiary text-text-primary/70 border border-border">
+          main
+        </span>
+      </div>
+
+      {/* Right */}
+      <div className="flex items-center gap-1">
+        {/* Avatar stack */}
+        <div className="flex items-center gap-2 mr-2">
+          <div className="flex -space-x-1.5">
+            <div className="w-7 h-7 rounded-full bg-accent flex items-center justify-center text-white text-[10px] font-bold ring-2 ring-bg-secondary z-10">
+              JM
+            </div>
+            <div className="w-7 h-7 rounded-full bg-green-500 flex items-center justify-center text-white text-[10px] font-bold ring-2 ring-bg-secondary">
+              +2
+            </div>
+          </div>
+          <span className="text-sm text-text-primary/50">인원</span>
+        </div>
+
+        {/* 멤버 */}
+        <button
+          onClick={() => setMemberModalOpen(true)}
+          className="flex items-center gap-1.5 px-2.5 py-1 text-sm text-text-primary/60 hover:text-text-primary hover:bg-bg-tertiary rounded transition-colors"
+        >
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+          >
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+          멤버
+        </button>
+
+        {/* 공유 */}
+        <button className="flex items-center gap-1.5 px-2.5 py-1 text-sm text-text-primary/60 hover:text-text-primary hover:bg-bg-tertiary rounded transition-colors">
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+          >
+            <circle cx="18" cy="5" r="3" />
+            <circle cx="6" cy="12" r="3" />
+            <circle cx="18" cy="19" r="3" />
+            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+          </svg>
+          공유
+        </button>
+
+        {/* 실행 / 정지 */}
+        <button
+          onClick={handleRunClick}
+          className={`flex items-center gap-1.5 px-3 py-1 ml-1 text-sm text-white rounded transition-colors font-medium ${
+            isRunning ? 'bg-red-600 hover:bg-red-500' : 'bg-green-600 hover:bg-green-500'
+          }`}
+        >
+          {isRunning ? (
+            <>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="4" y="4" width="16" height="16" rx="1" />
+              </svg>
+              정지
+            </>
+          ) : (
+            <>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5 3 19 12 5 21 5 3" />
+              </svg>
+              실행
+            </>
+          )}
+        </button>
+      </div>
+    </header>
+  )
+}
+import { useAtomValue } from 'jotai'
+import ActivityBar from './ActivityBar'
+import ChatPanel from './ChatPanel'
+import EditorArea from './EditorArea'
+import FileTreePanel from './FileTreePanel'
+import MemberModal from './MemberModal'
+import SearchPanel from './SearchPanel'
+import TopBar from './TopBar'
+import { activeSidebarPanelAtom } from '../stores/sidebarAtom'
+
+export default function WorkspaceLayout() {
+  const activeSidebarPanel = useAtomValue(activeSidebarPanelAtom)
+
+  return (
+    <div className="h-screen flex flex-col bg-bg-primary text-text-primary overflow-hidden">
+      <TopBar />
+      <div className="flex flex-1 overflow-hidden">
+        <ActivityBar />
+        {activeSidebarPanel === 'filetree' ? <FileTreePanel /> : <SearchPanel />}
+        <EditorArea />
+        <ChatPanel />
+      </div>
+      <MemberModal />
+    </div>
+  )
+}
+import { useEffect, useState } from 'react'
+import { useAtom } from 'jotai'
+import { memberModalOpenAtom } from '../stores/memberModalAtom'
+
+type Role = 'OWNER' | 'EDITOR' | 'VIEWER'
+
+interface Member {
+  id: string
+  name: string
+  email: string
+  role: Role
+  color: string
+  initials: string
+}
+
+const INITIAL_MEMBERS: Member[] = [
+  {
+    id: '1',
+    name: 'Jiwoo Seo',
+    email: 'jiwoo@codenest.io',
+    role: 'OWNER',
+    color: 'bg-teal-500',
+    initials: 'Ji',
+  },
+  {
+    id: '2',
+    name: 'Minseo Kim',
+    email: 'minseo@codenest.io',
+    role: 'EDITOR',
+    color: 'bg-pink-500',
+    initials: 'Mi',
+  },
+  {
+    id: '3',
+    name: 'Hyun Lee',
+    email: 'hyun@codenest.io',
+    role: 'EDITOR',
+    color: 'bg-green-500',
+    initials: 'Hy',
+  },
+  {
+    id: '4',
+    name: 'Suji Park',
+    email: 'suji@codenest.io',
+    role: 'VIEWER',
+    color: 'bg-orange-500',
+    initials: 'Su',
+  },
+]
+
+const AVATAR_COLORS = [
+  'bg-purple-500',
+  'bg-cyan-500',
+  'bg-rose-500',
+  'bg-amber-500',
+  'bg-indigo-500',
+]
+
+function RoleSelect({
+  value,
+  onChange,
+}: {
+  value: 'EDITOR' | 'VIEWER'
+  onChange: (v: 'EDITOR' | 'VIEWER') => void
+}) {
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value as 'EDITOR' | 'VIEWER')}
+        className="appearance-none bg-bg-tertiary border border-border rounded-lg pl-3 pr-7 py-1.5 text-[12px] text-text-primary/80 outline-none cursor-pointer hover:border-text-primary/30 transition-colors"
+      >
+        <option value="EDITOR">EDITOR</option>
+        <option value="VIEWER">VIEWER</option>
+      </select>
+      <svg
+        className="absolute right-2 top-1/2 -translate-y-1/2 text-text-primary/40 pointer-events-none"
+        width="11"
+        height="11"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.5"
+      >
+        <polyline points="6 9 12 15 18 9" />
+      </svg>
+    </div>
+  )
+}
+
+export default function MemberModal() {
+  const [isOpen, setIsOpen] = useAtom(memberModalOpenAtom)
+  const [members, setMembers] = useState<Member[]>(INITIAL_MEMBERS)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState<'EDITOR' | 'VIEWER'>('EDITOR')
+  const [colorIdx, setColorIdx] = useState(0)
+
+  useEffect(() => {
+    if (!isOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [isOpen, setIsOpen])
+
+  if (!isOpen) return null
+
+  const handleInvite = () => {
+    const email = inviteEmail.trim()
+    if (!email || !email.includes('@')) return
+    const rawName = email.split('@')[0]
+    const name = rawName.charAt(0).toUpperCase() + rawName.slice(1)
+    const initials = rawName.slice(0, 2)
+    setMembers((prev) => [
+      ...prev,
+      {
+        id: Date.now().toString(),
+        name,
+        email,
+        role: inviteRole,
+        color: AVATAR_COLORS[colorIdx % AVATAR_COLORS.length],
+        initials,
+      },
+    ])
+    setColorIdx((i) => i + 1)
+    setInviteEmail('')
+  }
+
+  const updateRole = (id: string, role: 'EDITOR' | 'VIEWER') => {
+    setMembers((prev) => prev.map((m) => (m.id === id ? { ...m, role } : m)))
+  }
+
+  const removeMember = (id: string) => {
+    setMembers((prev) => prev.filter((m) => m.id !== id))
+  }
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) setIsOpen(false)
+      }}
+    >
+      <div className="bg-bg-secondary border border-border rounded-xl w-full max-w-[540px] shadow-2xl flex flex-col">
+        {/* Header */}
+        <div className="flex items-start justify-between px-6 pt-5 pb-4">
+          <div>
+            <h2 className="text-[16px] font-semibold text-text-primary flex items-center gap-2">
+              <span>👑</span>
+              <span>멤버 관리</span>
+            </h2>
+            <p className="text-[13px] text-text-primary/45 mt-1">
+              OWNER만 멤버를 초대하거나 권한을 변경할 수 있어요.
+            </p>
+          </div>
+          <button
+            onClick={() => setIsOpen(false)}
+            className="text-text-primary/35 hover:text-text-primary/70 transition-colors text-[20px] leading-none mt-0.5"
+          >
+            ×
+          </button>
+        </div>
+
+        {/* Invite */}
+        <div className="px-6 pb-5">
+          <div className="flex gap-2">
+            <input
+              className="flex-1 bg-bg-tertiary border border-border rounded-lg px-3 py-2 text-[13px] text-text-primary placeholder:text-text-primary/30 outline-none focus:border-accent/60 transition-colors min-w-0"
+              placeholder="이메일로 멤버 초대"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleInvite()
+              }}
+            />
+            <div className="relative shrink-0">
+              <select
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value as 'EDITOR' | 'VIEWER')}
+                className="appearance-none bg-bg-tertiary border border-border rounded-lg pl-3 pr-7 py-2 text-[13px] text-text-primary/80 outline-none cursor-pointer hover:border-text-primary/30 transition-colors"
+              >
+                <option value="EDITOR">EDITOR</option>
+                <option value="VIEWER">VIEWER</option>
+              </select>
+              <svg
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-text-primary/40 pointer-events-none"
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </div>
+            <button
+              onClick={handleInvite}
+              className="shrink-0 px-4 py-2 bg-accent text-white text-[13px] font-medium rounded-lg hover:opacity-90 transition-opacity"
+            >
+              초대
+            </button>
+          </div>
+        </div>
+
+        {/* Member list */}
+        <div className="px-6 pb-4">
+          <p className="text-[12px] text-text-primary/45 mb-2.5">현재 멤버 ({members.length})</p>
+          <div className="border border-border rounded-lg overflow-hidden max-h-[260px] overflow-y-auto">
+            {members.map((member, index) => (
+              <div
+                key={member.id}
+                className={`flex items-center gap-3 px-4 py-3 ${
+                  index < members.length - 1 ? 'border-b border-border' : ''
+                }`}
+              >
+                {/* Avatar */}
+                <div
+                  className={`w-9 h-9 rounded-full ${member.color} flex items-center justify-center text-white text-[12px] font-bold shrink-0`}
+                >
+                  {member.initials}
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13px] font-medium text-text-primary truncate">
+                      {member.name}
+                    </span>
+                    {member.role === 'OWNER' && (
+                      <span className="shrink-0 text-[11px] px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-400 border border-yellow-500/30 font-medium">
+                        Owner
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[12px] text-text-primary/40 truncate">{member.email}</p>
+                </div>
+
+                {/* Controls */}
+                {member.role === 'OWNER' ? (
+                  <span className="text-[12px] text-text-primary/25 shrink-0">변경 불가</span>
+                ) : (
+                  <div className="flex items-center gap-2 shrink-0">
+                    <RoleSelect
+                      value={member.role as 'EDITOR' | 'VIEWER'}
+                      onChange={(role) => updateRole(member.id, role)}
+                    />
+                    <button
+                      onClick={() => removeMember(member.id)}
+                      title="멤버 제거"
+                      className="p-1 text-text-primary/30 hover:text-red-400 transition-colors"
+                    >
+                      <svg
+                        width="15"
+                        height="15"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                      >
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6l-1 14H6L5 6" />
+                        <path d="M10 11v6M14 11v6" />
+                        <path d="M9 6V4h6v2" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end px-6 py-4 border-t border-border">
+          <button
+            onClick={() => setIsOpen(false)}
+            className="px-4 py-1.5 text-[13px] text-text-primary/60 hover:text-text-primary transition-colors"
+          >
+            닫기
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+import { useEffect, useRef, useState } from 'react'
+import { useAtom, useAtomValue } from 'jotai'
+import { isRunningAtom, runTriggerAtom, stopTriggerAtom } from '../stores/terminalAtom'
+
+type LineType = 'default' | 'success' | 'error' | 'info' | 'link' | 'muted' | 'warning'
+
+interface TermLine {
+  id: number
+  text: string
+  type: LineType
+  isPrompt?: boolean
+}
+
+const TYPE_CLASS: Record<LineType, string> = {
+  default: 'text-text-primary/85',
+  success: 'text-terminal-green',
+  error: 'text-red-400',
+  info: 'text-terminal-blue',
+  link: 'text-terminal-blue underline cursor-pointer',
+  muted: 'text-text-primary/40',
+  warning: 'text-yellow-400',
+}
+
+let uid = 0
+const line = (text: string, type: LineType = 'default', isPrompt = false): TermLine => ({
+  id: uid++,
+  text,
+  type,
+  isPrompt,
+})
+
+const DEV_STEPS: Array<{ delay: number; text: string; type: LineType }> = [
+  { delay: 50, text: '', type: 'default' },
+  { delay: 120, text: '> react-dashboard@0.0.0 dev', type: 'muted' },
+  { delay: 180, text: '> vite', type: 'info' },
+  { delay: 550, text: '', type: 'default' },
+  { delay: 650, text: '  VITE v6.3.5  ready in 412 ms', type: 'success' },
+  { delay: 750, text: '', type: 'default' },
+  { delay: 850, text: '  ➜  Local:   http://localhost:5173/', type: 'link' },
+  { delay: 950, text: '  ➜  Network: use --host to expose', type: 'info' },
+]
+
+const BUILD_STEPS: Array<{ delay: number; text: string; type: LineType }> = [
+  { delay: 50, text: '> react-dashboard@0.0.0 build', type: 'muted' },
+  { delay: 100, text: '> tsc -b && vite build', type: 'info' },
+  { delay: 600, text: '', type: 'default' },
+  { delay: 700, text: 'vite v6.3.5 building client...', type: 'muted' },
+  { delay: 1300, text: '✓ 110 modules transformed.', type: 'success' },
+  { delay: 1450, text: 'dist/assets/index.css    22.82 kB │ gzip: 4.90 kB', type: 'default' },
+  { delay: 1550, text: 'dist/assets/index.js    356.89 kB │ gzip: 111 kB', type: 'default' },
+  { delay: 1650, text: '', type: 'default' },
+  { delay: 1750, text: '✓ built in 110ms', type: 'success' },
+]
+
+const INSTALL_STEPS: Array<{ delay: number; text: string; type: LineType }> = [
+  { delay: 100, text: 'npm warn deprecated glob@7.2.3', type: 'warning' },
+  { delay: 600, text: 'added 192 packages in 4s', type: 'default' },
+  { delay: 750, text: '', type: 'default' },
+  { delay: 850, text: '55 packages are looking for funding', type: 'muted' },
+  { delay: 950, text: '  run `npm fund` for details', type: 'muted' },
+]
+
+export default function TerminalPanel() {
+  const [lines, setLines] = useState<TermLine[]>([])
+  const [input, setInput] = useState('')
+  const [cmdHistory, setCmdHistory] = useState<string[]>([])
+  const [histIdx, setHistIdx] = useState(-1)
+  const [isRunning, setIsRunning] = useAtom(isRunningAtom)
+  const runTrigger = useAtomValue(runTriggerAtom)
+  const stopTrigger = useAtomValue(stopTriggerAtom)
+  const prevRun = useRef(0)
+  const prevStop = useRef(0)
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const timerIds = useRef<ReturnType<typeof setTimeout>[]>([])
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'auto' })
+  }, [lines, isRunning])
+
+  useEffect(() => {
+    if (runTrigger > prevRun.current) {
+      prevRun.current = runTrigger
+      runDevServer()
+    }
+  }, [runTrigger])
+
+  useEffect(() => {
+    if (stopTrigger > prevStop.current) {
+      prevStop.current = stopTrigger
+      stopDevServer()
+    }
+  }, [stopTrigger])
+
+  const append = (text: string, type: LineType = 'default', isPrompt = false) => {
+    setLines((prev) => [...prev, line(text, type, isPrompt)])
+  }
+
+  const appendMany = (newLines: TermLine[]) => {
+    setLines((prev) => [...prev, ...newLines])
+  }
+
+  const scheduleSteps = (
+    steps: Array<{ delay: number; text: string; type: LineType }>,
+    onDone?: () => void,
+  ) => {
+    timerIds.current.forEach(clearTimeout)
+    timerIds.current = []
+
+    steps.forEach(({ delay, text, type }) => {
+      const id = setTimeout(() => append(text, type), delay)
+      timerIds.current.push(id)
+    })
+
+    if (onDone) {
+      const lastDelay = steps[steps.length - 1]?.delay ?? 0
+      const id = setTimeout(onDone, lastDelay + 50)
+      timerIds.current.push(id)
+    }
+  }
+
+  const runDevServer = () => {
+    if (isRunning) {
+      append('npm run dev', 'default', true)
+      append('error: dev server is already running.', 'error')
+      return
+    }
+    append('npm run dev', 'default', true)
+    setIsRunning(true)
+    scheduleSteps(DEV_STEPS)
+  }
+
+  const stopDevServer = () => {
+    timerIds.current.forEach(clearTimeout)
+    timerIds.current = []
+    setIsRunning(false)
+    appendMany([line('^C', 'warning'), line('', 'default'), line('dev server stopped.', 'muted')])
+    setTimeout(() => inputRef.current?.focus(), 50)
+  }
+
+  const executeCommand = (cmd: string) => {
+    const trimmed = cmd.trim()
+    if (!trimmed) {
+      append('', 'default', true)
+      return
+    }
+
+    setCmdHistory((prev) => [trimmed, ...prev.slice(0, 49)])
+    setHistIdx(-1)
+
+    const [command, ...args] = trimmed.split(/\s+/)
+
+    switch (command) {
+      case 'help':
+        append(trimmed, 'default', true)
+        appendMany([
+          line('Available commands:', 'muted'),
+          line('  help             show this help', 'default'),
+          line('  ls               list files', 'default'),
+          line('  pwd              print working directory', 'default'),
+          line('  echo <text>      print text', 'default'),
+          line('  clear            clear terminal', 'default'),
+          line('  npm run dev      start dev server', 'default'),
+          line('  npm run build    build project', 'default'),
+          line('  npm install      install dependencies', 'default'),
+        ])
+        break
+
+      case 'ls':
+        append(trimmed, 'default', true)
+        append('src/  public/  package.json  README.md  vite.config.ts', 'info')
+        break
+
+      case 'pwd':
+        append(trimmed, 'default', true)
+        append('/workspace/react-dashboard')
+        break
+
+      case 'echo':
+        append(trimmed, 'default', true)
+        append(args.join(' '))
+        break
+
+      case 'clear':
+        setLines([])
+        break
+
+      case 'npm':
+        if (args[0] === 'run' && args[1] === 'dev') {
+          runDevServer()
+        } else if (args[0] === 'run' && args[1] === 'build') {
+          append(trimmed, 'default', true)
+          scheduleSteps(BUILD_STEPS)
+        } else if (args[0] === 'install' || args[0] === 'i') {
+          append(trimmed, 'default', true)
+          scheduleSteps(INSTALL_STEPS)
+        } else {
+          append(trimmed, 'default', true)
+          append(`npm: unknown command '${args.join(' ')}'`, 'error')
+        }
+        break
+
+      default:
+        append(trimmed, 'default', true)
+        append(`bash: command not found: ${command}`, 'error')
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      const cmd = input
+      setInput('')
+      executeCommand(cmd)
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      const next = Math.min(histIdx + 1, cmdHistory.length - 1)
+      setHistIdx(next)
+      if (cmdHistory[next] !== undefined) setInput(cmdHistory[next])
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      const next = Math.max(histIdx - 1, -1)
+      setHistIdx(next)
+      setInput(next === -1 ? '' : (cmdHistory[next] ?? ''))
+    } else if (e.key === 'c' && e.ctrlKey) {
+      stopDevServer()
+    }
+  }
+
+  return (
+    <div className="h-44 flex flex-col border-t border-border shrink-0">
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 h-8 border-b border-border shrink-0 bg-bg-secondary">
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] font-semibold text-text-primary/40 uppercase tracking-wider">
+            터미널
+          </span>
+          {isRunning && (
+            <span className="text-[12px] text-text-primary/70 bg-bg-tertiary px-2 py-0.5 rounded">
+              npm run dev
+            </span>
+          )}
+        </div>
+        <button
+          onClick={() => setLines([])}
+          className="text-text-primary/30 hover:text-text-primary/60 transition-colors text-sm leading-none"
+          title="터미널 지우기"
+        >
+          ×
+        </button>
+      </div>
+
+      {/* Output */}
+      <div
+        className="flex-1 overflow-y-auto px-3 pt-2 font-mono text-[12px] bg-bg-primary"
+        onClick={() => inputRef.current?.focus()}
+      >
+        {lines.map((l) => (
+          <div key={l.id} className={`whitespace-pre leading-[1.6] ${TYPE_CLASS[l.type]}`}>
+            {l.isPrompt && (
+              <>
+                <span className="text-terminal-green">react-dashboard</span>
+                <span className="text-text-primary/50">:~$ </span>
+              </>
+            )}
+            {l.text}
+          </div>
+        ))}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input prompt */}
+      <div className="px-3 py-1.5 flex items-center font-mono text-[12px] bg-bg-primary border-t border-border/40 shrink-0">
+        <span className="text-terminal-green shrink-0">react-dashboard</span>
+        <span className="text-text-primary/50 shrink-0">:~$&nbsp;</span>
+        {isRunning ? (
+          <span className="text-text-primary/35 flex items-center gap-1.5">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-terminal-green animate-pulse" />
+            <span>실행 중... (Ctrl+C 또는 정지 버튼으로 종료)</span>
+          </span>
+        ) : (
+          <input
+            ref={inputRef}
+            className="flex-1 bg-transparent text-text-primary outline-none caret-white min-w-0"
+            style={{ fontFamily: 'inherit', fontSize: 'inherit' }}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            autoFocus
+            spellCheck={false}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+import { useState } from 'react'
+
+interface Version {
+  id: number
+  author: string
+  initials: string
+  color: string
+  title: string
+  date: string
+  shortDate: string
+  diffAdd: number
+  diffDel: number
+}
+
+const VERSIONS: Version[] = [
+  {
+    id: 1,
+    author: '홍길동',
+    initials: '홍',
+    color: 'bg-red-500',
+    title: '최초 생성',
+    date: '2025-01-10 10:00',
+    shortDate: '01-10 10:00',
+    diffAdd: 5,
+    diffDel: 0,
+  },
+  {
+    id: 2,
+    author: '김철수',
+    initials: '김',
+    color: 'bg-accent',
+    title: 'Monaco 연결',
+    date: '2025-01-10 11:30',
+    shortDate: '01-10 11:30',
+    diffAdd: 4,
+    diffDel: 1,
+  },
+  {
+    id: 3,
+    author: '이영희',
+    initials: '이',
+    color: 'bg-orange-500',
+    title: 'WebSocket 연결',
+    date: '2025-01-11 09:15',
+    shortDate: '01-11 09:15',
+    diffAdd: 6,
+    diffDel: 2,
+  },
+  {
+    id: 4,
+    author: '홍길동',
+    initials: '홍',
+    color: 'bg-red-500',
+    title: 'Yjs CRDT 적용',
+    date: '2025-01-12 14:00',
+    shortDate: '01-12 14:00',
+    diffAdd: 12,
+    diffDel: 3,
+  },
+  {
+    id: 5,
+    author: '김철수',
+    initials: '김',
+    color: 'bg-accent',
+    title: '버그 수정',
+    date: '2025-01-13 16:45',
+    shortDate: '01-13 16:45',
+    diffAdd: 2,
+    diffDel: 4,
+  },
+]
+
+interface CodeLine {
+  text: string
+  isNew?: boolean
+}
+
+const VERSION_CODES: CodeLine[][] = [
+  // v1
+  [
+    { text: "import React from 'react'" },
+    { text: '' },
+    { text: 'export default function Editor() {' },
+    { text: '  return <div>에디터</div>' },
+    { text: '}' },
+  ],
+  // v2
+  [
+    { text: "import React from 'react'" },
+    { text: "import MonacoEditor from '@monaco-editor/react'", isNew: true },
+    { text: '' },
+    { text: 'export default function Editor() {' },
+    { text: '  return <MonacoEditor', isNew: true },
+    { text: '    height="100%"', isNew: true },
+    { text: '    language="javascript" />', isNew: true },
+    { text: '}' },
+  ],
+  // v3
+  [
+    { text: "import React, { useRef } from 'react'" },
+    { text: "import MonacoEditor from '@monaco-editor/react'" },
+    { text: "import { WebsocketProvider } from 'y-websocket'", isNew: true },
+    { text: '' },
+    { text: 'export default function Editor() {' },
+    { text: '  const provider = new WebsocketProvider(url, room, ydoc)', isNew: true },
+    { text: '  return <MonacoEditor' },
+    { text: '    height="100%"' },
+    { text: '    language="javascript" />' },
+    { text: '}' },
+  ],
+  // v4
+  [
+    { text: "import React, { useRef } from 'react'" },
+    { text: "import MonacoEditor from '@monaco-editor/react'" },
+    { text: "import * as Y from 'yjs'", isNew: true },
+    { text: "import { WebsocketProvider } from 'y-websocket'" },
+    { text: '' },
+    { text: 'export default function Editor() {' },
+    { text: '  const ydoc = useRef(new Y.Doc()).current', isNew: true },
+    { text: '  const provider = new WebsocketProvider(url, room, ydoc)' },
+    { text: '  return <MonacoEditor' },
+    { text: '    height="100%"' },
+    { text: '    language="javascript" />' },
+    { text: '}' },
+  ],
+  // v5
+  [
+    { text: "import React, { useRef, useEffect } from 'react'" },
+    { text: "import MonacoEditor from '@monaco-editor/react'" },
+    { text: "import * as Y from 'yjs'" },
+    { text: "import { WebsocketProvider } from 'y-websocket'" },
+    { text: '' },
+    { text: 'export default function Editor() {' },
+    { text: '  const ydoc = useRef(new Y.Doc()).current' },
+    { text: '  useEffect(() => {', isNew: true },
+    { text: "    const provider = new WebsocketProvider(url, room, ydoc)", isNew: true },
+    { text: '    return () => provider.destroy()', isNew: true },
+    { text: '  }, [])', isNew: true },
+    { text: '  return <MonacoEditor' },
+    { text: '    height="100%"' },
+    { text: '    language="javascript" />' },
+    { text: '}' },
+  ],
+]
+
+export default function FileHistoryPanel() {
+  const [selectedVersion, setSelectedVersion] = useState(2)
+  const version = VERSIONS[selectedVersion - 1]
+  const codeLines = VERSION_CODES[selectedVersion - 1]
+  const total = VERSIONS.length
+
+  return (
+    <div className="flex-1 overflow-auto px-6 py-4 flex flex-col gap-4 min-w-0">
+      {/* Header */}
+      <div className="flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2">
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="var(--color-icon-js)"
+            strokeWidth="1.5"
+          >
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+          </svg>
+          <span className="text-[15px] font-semibold text-text-primary">Editor.jsx</span>
+          <span className="text-[11px] px-2 py-0.5 rounded bg-bg-tertiary text-text-primary/60 border border-border">
+            {total}개 버전
+          </span>
+        </div>
+        <span className="text-[12px] text-text-primary/40">
+          v{selectedVersion} — {version.title}
+        </span>
+      </div>
+
+      {/* Code preview card */}
+      <div className="rounded-lg border border-border bg-bg-secondary overflow-hidden shrink-0">
+        <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-border">
+          <div className="w-3 h-3 rounded-full bg-[#ff5f57]" />
+          <div className="w-3 h-3 rounded-full bg-[#febc2e]" />
+          <div className="w-3 h-3 rounded-full bg-[#28c840]" />
+        </div>
+        <div className="font-mono text-[12px] leading-[1.7] py-2 overflow-x-auto">
+          {codeLines.map((line, i) => (
+            <div
+              key={i}
+              className={`flex items-start transition-colors ${line.isNew ? 'bg-green-900/20' : ''}`}
+            >
+              <span className="w-10 shrink-0 text-right pr-3 text-text-muted select-none">
+                {i + 1}
+              </span>
+              <span className={`flex-1 pr-6 whitespace-pre ${line.isNew ? 'text-green-300/90' : 'text-text-primary/80'}`}>
+                {line.text || ' '}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Slider */}
+      <div className="shrink-0 space-y-3">
+        <div className="relative flex items-center h-5">
+          <div className="absolute inset-x-1.5 h-px bg-border">
+            <div
+              className="h-full bg-accent transition-all duration-200"
+              style={{ width: `${((selectedVersion - 1) / (total - 1)) * 100}%` }}
+            />
+          </div>
+          <div className="relative flex justify-between w-full">
+            {VERSIONS.map((v) => (
+              <button
+                key={v.id}
+                onClick={() => setSelectedVersion(v.id)}
+                className={`rounded-full border-2 transition-all duration-200 ${
+                  v.id === selectedVersion
+                    ? 'w-4 h-4 bg-accent border-accent'
+                    : v.id < selectedVersion
+                      ? 'w-3 h-3 bg-accent border-accent'
+                      : 'w-3 h-3 bg-bg-secondary border-border hover:border-text-primary/40'
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <button className="w-6 h-6 rounded-full border border-border flex items-center justify-center text-text-primary/50 hover:text-text-primary/90 hover:border-text-primary/40 transition-colors">
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5 3 19 12 5 21 5 3" />
+              </svg>
+            </button>
+            <span className="text-[13px] text-text-primary/70">
+              버전 {selectedVersion} / {total}
+            </span>
+          </div>
+          <span className="text-[12px] text-text-primary/40">
+            {version.author} · {version.date}
+          </span>
+        </div>
+      </div>
+
+      {/* Version cards */}
+      <div className="flex gap-3 overflow-x-auto pb-1 shrink-0">
+        {VERSIONS.map((v) => (
+          <button
+            key={v.id}
+            onClick={() => setSelectedVersion(v.id)}
+            className={`flex-none w-40 p-3 rounded-lg border text-left transition-colors ${
+              v.id === selectedVersion
+                ? 'border-accent/40 bg-bg-selected'
+                : 'border-border bg-bg-secondary hover:bg-bg-tertiary'
+            }`}
+          >
+            <div className="flex items-center gap-1.5 mb-2">
+              <div
+                className={`w-5 h-5 rounded-full ${v.color} flex items-center justify-center text-white text-[10px] font-bold shrink-0`}
+              >
+                {v.initials}
+              </div>
+              <span className="text-[12px] text-text-primary/60 truncate">{v.author}</span>
+            </div>
+            <p className="text-[13px] font-semibold text-text-primary leading-tight">{v.title}</p>
+            <p className="text-[11px] text-text-primary/35 mt-1">
+              v{v.id} · {v.shortDate}
+            </p>
+          </button>
+        ))}
+      </div>
+
+      {/* Diff stats */}
+      <div className="text-[12px] text-text-primary/50 shrink-0">
+        {selectedVersion === 1 ? (
+          <span>초기 버전</span>
+        ) : (
+          <>
+            이전 버전 대비{' '}
+            <span className="text-green-400">+{version.diffAdd}줄</span>{' '}
+            <span className="text-red-400">-{version.diffDel}줄</span>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+import { useState } from 'react'
+
+const MOCK_RESULTS = [
+  {
+    file: 'src/components/Editor.jsx',
+    matches: [
+      { line: 2, text: "import MonacoEditor from '@monaco-editor/react'" },
+      { line: 5, text: '  return <MonacoEditor' },
+    ],
+  },
+  {
+    file: 'src/App.tsx',
+    matches: [{ line: 8, text: "import Editor from './components/Editor'" }],
+  },
+  {
+    file: 'package.json',
+    matches: [{ line: 12, text: '    "@monaco-editor/react": "^4.6.0"' }],
+  },
+]
+
+export default function SearchPanel() {
+  const [query, setQuery] = useState('')
+
+  const filtered = query.trim()
+    ? MOCK_RESULTS.filter(
+        (r) =>
+          r.file.toLowerCase().includes(query.toLowerCase()) ||
+          r.matches.some((m) => m.text.toLowerCase().includes(query.toLowerCase())),
+      )
+    : []
+
+  return (
+    <div className="w-56 flex flex-col bg-bg-secondary border-r border-border shrink-0 overflow-hidden">
+      <div className="px-3 py-2 shrink-0">
+        <span className="text-[11px] font-semibold text-text-primary/40 uppercase tracking-wider">
+          검색
+        </span>
+      </div>
+
+      <div className="px-3 pb-2 shrink-0">
+        <div className="flex items-center gap-2 bg-bg-tertiary border border-border rounded px-2 py-1.5">
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            className="text-text-primary/40 shrink-0"
+          >
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            className="flex-1 bg-transparent text-[13px] text-text-primary placeholder:text-text-primary/30 outline-none"
+            placeholder="검색어 입력..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          {query && (
+            <button
+              onClick={() => setQuery('')}
+              className="text-text-primary/30 hover:text-text-primary/60 transition-colors leading-none"
+            >
+              ×
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto">
+        {query.trim() === '' ? (
+          <p className="px-3 text-[12px] text-text-primary/30">검색어를 입력하세요</p>
+        ) : filtered.length === 0 ? (
+          <p className="px-3 text-[12px] text-text-primary/30">결과 없음</p>
+        ) : (
+          <div className="space-y-3">
+            {filtered.map((result) => (
+              <div key={result.file}>
+                <div className="flex items-center gap-1.5 px-3 py-1">
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="var(--color-icon-js)"
+                    strokeWidth="1.5"
+                    className="shrink-0"
+                  >
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                  </svg>
+                  <span className="text-[12px] text-text-primary/80 truncate">{result.file}</span>
+                  <span className="ml-auto text-[11px] text-text-primary/30 shrink-0">
+                    {result.matches.length}
+                  </span>
+                </div>
+                {result.matches.map((match) => (
+                  <button
+                    key={match.line}
+                    className="w-full flex items-start gap-2 px-3 py-0.5 hover:bg-bg-hover text-left"
+                  >
+                    <span className="text-[11px] text-text-primary/30 shrink-0 w-5 text-right mt-px">
+                      {match.line}
+                    </span>
+                    <span className="text-[12px] text-text-primary/60 truncate font-mono">
+                      {match.text}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+import type { ReactNode } from 'react'
+
+interface TreeNodeProps {
+  name: string
+  isFolder?: boolean
+  isOpen?: boolean
+  isSelected?: boolean
+  depth?: number
+  children?: ReactNode
+}
+
+function TreeNode({ name, isFolder, isOpen, isSelected, depth = 0, children }: TreeNodeProps) {
+  const ext = name.split('.').pop()
+  const fileStrokeColor =
+    ext === 'tsx' || ext === 'ts'
+      ? 'var(--color-icon-ts)'
+      : ext === 'jsx' || ext === 'js'
+        ? 'var(--color-icon-js)'
+        : ext === 'json'
+          ? 'var(--color-icon-json)'
+          : ext === 'md'
+            ? 'var(--color-icon-md)'
+            : 'var(--color-text-primary)'
+
+  return (
+    <div>
+      <div
+        className={`flex items-center gap-1.5 py-[3px] cursor-pointer text-[13px] select-none ${
+          isSelected ? 'bg-bg-selected text-text-primary' : 'text-text-primary/70 hover:bg-bg-hover'
+        }`}
+        style={{ paddingLeft: `${8 + depth * 12}px` }}
+      >
+        {isFolder ? (
+          <>
+            <span className="text-text-primary/30 text-[10px] w-3 shrink-0">
+              {isOpen ? '▾' : '▸'}
+            </span>
+            <svg width="14" height="14" viewBox="0 0 24 24" className="fill-icon-folder shrink-0">
+              <path d="M10 4H2v16h20V6H12l-2-2z" />
+            </svg>
+          </>
+        ) : (
+          <>
+            <span className="w-3 shrink-0" />
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              strokeWidth="1.5"
+              className="shrink-0"
+              style={{ stroke: fileStrokeColor }}
+            >
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+            </svg>
+          </>
+        )}
+        <span className="truncate">{name}</span>
+      </div>
+      {isFolder && isOpen && children}
+    </div>
+  )
+}
+
+export default function FileTreePanel() {
+  return (
+    <div className="w-56 flex flex-col bg-bg-secondary border-r border-border shrink-0 overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 shrink-0">
+        <span className="text-[11px] font-semibold text-text-primary/40 uppercase tracking-wider">
+          파일트리
+        </span>
+        <button className="text-text-primary/30 hover:text-text-primary/70 text-base leading-none transition-colors">
+          ›
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto">
+        <TreeNode name="src" isFolder isOpen depth={0}>
+          <TreeNode name="components" isFolder isOpen depth={1}>
+            <TreeNode name="Button.tsx" depth={2} />
+            <TreeNode name="Header.tsx" depth={2} />
+            <TreeNode name="Editor.jsx" isSelected depth={2} />
+          </TreeNode>
+          <TreeNode name="App.tsx" depth={1} />
+        </TreeNode>
+        <TreeNode name="public" isFolder isOpen depth={0} />
+        <TreeNode name="favicon.ico" depth={0} />
+        <TreeNode name="package.json" depth={0} />
+        <TreeNode name="README.md" depth={0} />
+      </div>
+    </div>
+  )
+}
+import { useAtom } from 'jotai'
+import { activeSidebarPanelAtom, historyOpenAtom } from '../stores/sidebarAtom'
+import type { SidebarPanel } from '../stores/sidebarAtom'
+
+const SIDEBAR_ICONS: { id: SidebarPanel; label: string; path: React.ReactNode }[] = [
+  {
+    id: 'filetree',
+    label: '탐색기',
+    path: (
+      <>
+        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+        <polyline points="13 2 13 9 20 9" />
+      </>
+    ),
+  },
+  {
+    id: 'search',
+    label: '검색',
+    path: (
+      <>
+        <circle cx="11" cy="11" r="8" />
+        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      </>
+    ),
+  },
+]
+
+const HISTORY_ICON_PATH = (
+  <>
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12 6 12 12 16 14" />
+  </>
+)
+
+import type React from 'react'
+
+export default function ActivityBar() {
+  const [activeSidebar, setActiveSidebar] = useAtom(activeSidebarPanelAtom)
+  const [historyOpen, setHistoryOpen] = useAtom(historyOpenAtom)
+
+  return (
+    <div className="w-12 flex flex-col items-center py-2 bg-bg-activity border-r border-border shrink-0">
+      <div className="flex flex-col items-center gap-1 flex-1">
+        {SIDEBAR_ICONS.map(({ id, label, path }) => (
+          <button
+            key={id}
+            title={label}
+            onClick={() => setActiveSidebar(id)}
+            className={`w-10 h-10 flex items-center justify-center rounded transition-colors ${
+              activeSidebar === id && !historyOpen
+                ? 'text-text-primary bg-bg-secondary/50'
+                : 'text-text-primary/40 hover:text-text-primary/80 hover:bg-bg-secondary/30'
+            }`}
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            >
+              {path}
+            </svg>
+          </button>
+        ))}
+
+        <button
+          title="히스토리"
+          onClick={() => setHistoryOpen((prev) => !prev)}
+          className={`w-10 h-10 flex items-center justify-center rounded transition-colors ${
+            historyOpen
+              ? 'text-text-primary bg-bg-secondary/50'
+              : 'text-text-primary/40 hover:text-text-primary/80 hover:bg-bg-secondary/30'
+          }`}
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+          >
+            {HISTORY_ICON_PATH}
+          </svg>
+        </button>
+      </div>
+
+      <button
+        title="설정"
+        className="w-10 h-10 flex items-center justify-center text-text-primary/40 hover:text-text-primary/80 hover:bg-bg-secondary/30 rounded transition-colors"
+      >
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+        >
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+      </button>
+    </div>
+  )
+}
+import { useEffect, useRef, useState } from 'react'
+
+interface AttachedFile {
+  name: string
+  size: string
+}
+
+interface ChatMessage {
+  id: number
+  user: string
+  bgClass: string
+  time: string
+  text: string
+  isMe?: boolean
+  file?: AttachedFile
+}
+
+const INITIAL_MESSAGES: ChatMessage[] = [
+  {
+    id: 1,
+    user: '민서',
+    bgClass: 'bg-purple-500',
+    time: '오전 10:21',
+    text: 'Editor.jsx에서 Yjs 적용한 부분 한번 봐주세요. v4 슬라이드에서 변경 내역 확인 가능해요.',
+  },
+  {
+    id: 2,
+    user: '현우',
+    bgClass: 'bg-accent',
+    time: '오전 10:24',
+    text: '확인했어요 👍 WebSocket 연결 부분은 제가 어제 푸시한 거랑 잘 합쳐졌네요.',
+  },
+  {
+    id: 3,
+    user: '지우',
+    bgClass: 'bg-green-500',
+    time: '오전 10:30',
+    isMe: true,
+    text: '좋아요. 그럼 오늘 회의 전까지 v5에서 useRef로 ydoc 메모리 누수 막는 부분만 정리하고 머지할게요.',
+  },
+  {
+    id: 4,
+    user: '수지',
+    bgClass: 'bg-orange-500',
+    time: '오전 10:32',
+    text: '저는 README 업데이트 맡을게요!',
+  },
+]
+
+const EMOJIS = [
+  '😀', '😄', '😊', '😍', '🥰', '😂', '😭', '🥲',
+  '😅', '😬', '😎', '🤔', '🙄', '😴', '🤗', '😤',
+  '🥳', '😇', '🤩', '😏', '🫠', '🙃', '😤', '🤯',
+  '👍', '👎', '👏', '🙌', '🤝', '✌️', '👌', '💪',
+  '❤️', '🔥', '💯', '✅', '❌', '⚡', '🎉', '🚀',
+  '⭐', '💡', '🎯', '💎', '🧡', '💚', '💙', '🖤',
+]
+
+const ONLINE_COUNT = 4
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
+}
+
+function getNow(): string {
+  const now = new Date()
+  const h = now.getHours()
+  const m = now.getMinutes().toString().padStart(2, '0')
+  return `${h >= 12 ? '오후' : '오전'} ${h > 12 ? h - 12 : h === 0 ? 12 : h}:${m}`
+}
+
+export default function ChatPanel() {
+  const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES)
+  const [input, setInput] = useState('')
+  const [showEmoji, setShowEmoji] = useState(false)
+  const [attachedFile, setAttachedFile] = useState<AttachedFile | null>(null)
+
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const emojiPickerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  useEffect(() => {
+    if (!showEmoji) return
+    const handler = (e: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+        setShowEmoji(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showEmoji])
+
+  const sendMessage = () => {
+    const text = input.trim()
+    if (!text && !attachedFile) return
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        user: '지우',
+        bgClass: 'bg-green-500',
+        time: getNow(),
+        isMe: true,
+        text,
+        file: attachedFile ?? undefined,
+      },
+    ])
+    setInput('')
+    setAttachedFile(null)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      if (e.metaKey || e.ctrlKey || !e.shiftKey) {
+        e.preventDefault()
+        sendMessage()
+      }
+    }
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setAttachedFile({ name: file.name, size: formatFileSize(file.size) })
+    }
+    e.target.value = ''
+    inputRef.current?.focus()
+  }
+
+  const insertEmoji = (emoji: string) => {
+    setInput((prev) => prev + emoji)
+    setShowEmoji(false)
+    inputRef.current?.focus()
+  }
+
+  return (
+    <div className="w-72 flex flex-col bg-bg-secondary border-l border-border shrink-0">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border shrink-0">
+        <div className="flex items-center gap-2">
+          <span className="text-text-primary/40 font-bold text-sm">#</span>
+          <span className="text-[13px] font-semibold text-text-primary">프로젝트 채팅</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
+          <span className="text-[12px] text-text-primary/50">{ONLINE_COUNT}명 온라인</span>
+        </div>
+      </div>
+
+      {/* Date separator */}
+      <div className="flex items-center gap-3 px-4 py-3 shrink-0">
+        <div className="flex-1 h-px bg-border" />
+        <span className="text-[11px] text-text-primary/35">오늘</span>
+        <div className="flex-1 h-px bg-border" />
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-4">
+        {messages.map((msg) => (
+          <div key={msg.id} className="flex gap-2.5">
+            <div
+              className={`w-8 h-8 rounded-full ${msg.bgClass} flex items-center justify-center text-white text-[11px] font-bold shrink-0 mt-0.5`}
+            >
+              {msg.user[0]}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-baseline gap-1.5 mb-0.5 flex-wrap">
+                <span className="text-[13px] font-semibold text-text-primary">{msg.user}</span>
+                {msg.isMe && (
+                  <span className="text-[11px] text-text-primary/35">(나)</span>
+                )}
+                <span className="text-[11px] text-text-primary/35">{msg.time}</span>
+              </div>
+              {msg.text && (
+                <p className="text-[13px] text-text-primary/75 leading-relaxed break-words">
+                  {msg.text}
+                </p>
+              )}
+              {msg.file && (
+                <div className="mt-1 flex items-center gap-1.5 bg-bg-tertiary border border-border rounded px-2 py-1.5 w-fit max-w-full">
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    className="text-text-primary/50 shrink-0"
+                  >
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                  </svg>
+                  <span className="text-[12px] text-text-primary/70 truncate">{msg.file.name}</span>
+                  <span className="text-[11px] text-text-primary/35 shrink-0">{msg.file.size}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input area */}
+      <div className="px-3 pb-3 shrink-0">
+        <div className="relative">
+          {/* Emoji picker */}
+          {showEmoji && (
+            <div
+              ref={emojiPickerRef}
+              className="absolute bottom-full left-0 mb-2 bg-bg-secondary border border-border rounded-xl p-3 shadow-2xl z-10 w-[252px]"
+            >
+              <div className="grid grid-cols-8 gap-0.5">
+                {EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    onClick={() => insertEmoji(emoji)}
+                    className="text-[18px] w-7 h-7 flex items-center justify-center hover:bg-bg-tertiary rounded transition-colors"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-lg border border-border bg-bg-tertiary overflow-hidden">
+            {/* File preview */}
+            {attachedFile && (
+              <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  className="text-text-primary/50 shrink-0"
+                >
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+                <span className="text-[12px] text-text-primary/70 flex-1 truncate">
+                  {attachedFile.name}
+                </span>
+                <span className="text-[11px] text-text-primary/35 shrink-0">{attachedFile.size}</span>
+                <button
+                  onClick={() => setAttachedFile(null)}
+                  className="text-text-primary/35 hover:text-text-primary/70 transition-colors leading-none ml-1"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 px-3 py-2">
+              {/* File attach */}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="text-text-primary/35 hover:text-text-primary/60 transition-colors shrink-0"
+                title="파일 첨부"
+              >
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                </svg>
+              </button>
+
+              {/* Emoji */}
+              <button
+                onClick={() => setShowEmoji((v) => !v)}
+                className={`transition-colors shrink-0 ${showEmoji ? 'text-text-primary/70' : 'text-text-primary/35 hover:text-text-primary/60'}`}
+                title="이모지"
+              >
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+                  <line x1="9" y1="9" x2="9.01" y2="9" />
+                  <line x1="15" y1="9" x2="15.01" y2="9" />
+                </svg>
+              </button>
+
+              <input
+                ref={inputRef}
+                className="flex-1 bg-transparent text-[13px] text-text-primary placeholder:text-text-primary/25 outline-none"
+                placeholder="팀원에게 메시지 보내기..."
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+              />
+
+              {/* Send */}
+              <button
+                onClick={sendMessage}
+                disabled={!input.trim() && !attachedFile}
+                className={`w-6 h-6 rounded-full flex items-center justify-center text-white transition-opacity shrink-0 ${
+                  input.trim() || attachedFile
+                    ? 'bg-accent hover:opacity-80'
+                    : 'bg-accent/30 cursor-not-allowed'
+                }`}
+                title="전송"
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                >
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <p className="text-[10px] text-text-primary/20 mt-1.5 text-center">
+          ⌘ + Enter로 전송, @멘션 가능
+        </p>
+      </div>
+
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+    </div>
+  )
+}
+import { useEffect, useState } from 'react'
+import { useAtom } from 'jotai'
+import MonacoEditor from '@monaco-editor/react'
+import { historyOpenAtom } from '../stores/sidebarAtom'
+import FileHistoryPanel from './FileHistoryPanel'
+import TerminalPanel from './TerminalPanel'
+
+const INITIAL_CODE = `import React, { useEffect, useRef } from 'react'
+import MonacoEditor from '@monaco-editor/react'
+import * as Y from 'yjs'
+import { WebsocketProvider } from 'y-websocket'
+
+export default function Editor() {
+  const ydoc = useRef(new Y.Doc()).current
+  const provider = new WebsocketProvider(url, room, ydoc)
+  return <MonacoEditor language="javascript" />
+}`
+
+export default function EditorArea() {
+  const [historyOpen, setHistoryOpen] = useAtom(historyOpenAtom)
+  const [activeTab, setActiveTab] = useState<'code' | 'history'>('code')
+
+  useEffect(() => {
+    if (historyOpen) setActiveTab('history')
+  }, [historyOpen])
+
+  const closeHistory = () => {
+    setHistoryOpen(false)
+    setActiveTab('code')
+  }
+
+  return (
+    <div className="flex-1 flex flex-col bg-bg-primary overflow-hidden min-w-0">
+      {/* Tab bar */}
+      <div className="flex items-end bg-bg-secondary border-b border-border shrink-0 h-9">
+        <button
+          onClick={() => setActiveTab('code')}
+          className={`flex items-center gap-2 px-4 h-full text-[13px] transition-colors ${
+            activeTab === 'code'
+              ? 'bg-bg-primary border-t-2 border-t-accent text-text-primary'
+              : 'text-text-primary/50 hover:text-text-primary/80 hover:bg-bg-primary/50'
+          }`}
+        >
+          <span>Editor.jsx</span>
+          <span className="text-text-primary/30 hover:text-text-primary/70 text-sm leading-none transition-colors">
+            ×
+          </span>
+        </button>
+
+        {historyOpen && (
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`flex items-center gap-2 px-4 h-full text-[13px] transition-colors ${
+              activeTab === 'history'
+                ? 'bg-bg-primary border-t-2 border-t-accent text-text-primary'
+                : 'text-text-primary/50 hover:text-text-primary/80 hover:bg-bg-primary/50'
+            }`}
+          >
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              className="text-text-primary/60"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+            <span>Editor.jsx — 버전</span>
+            <span
+              onClick={(e) => {
+                e.stopPropagation()
+                closeHistory()
+              }}
+              className="text-text-primary/30 hover:text-text-primary/70 text-sm leading-none transition-colors"
+            >
+              ×
+            </span>
+          </button>
+        )}
+      </div>
+
+      {/* Main content */}
+      {activeTab === 'code' ? (
+        <div className="flex-1 overflow-hidden">
+          <MonacoEditor
+            height="100%"
+            defaultLanguage="javascript"
+            defaultValue={INITIAL_CODE}
+            theme="vs-dark"
+            options={{
+              fontSize: 13,
+              lineHeight: 22,
+              fontFamily: "'Menlo', 'Monaco', 'Courier New', monospace",
+              minimap: { enabled: false },
+              scrollBeyondLastLine: false,
+              tabSize: 2,
+              wordWrap: 'on',
+              renderLineHighlight: 'line',
+              overviewRulerLanes: 0,
+              hideCursorInOverviewRuler: true,
+              overviewRulerBorder: false,
+              padding: { top: 12, bottom: 12 },
+            }}
+          />
+        </div>
+      ) : (
+        <FileHistoryPanel />
+      )}
+
+      <TerminalPanel />
+    </div>
+  )
+}
+@import "tailwindcss";
+
+@theme {
+  --color-bg-primary: #1e1e1e;
+  --color-bg-secondary: #252526;
+  --color-bg-tertiary: #333333;
+  --color-border: #3e3e42;
+  --color-text-primary: #cccccc;
+  --color-text-muted: #858585;
+  --color-accent: #007acc;
+  --color-accent-hover: #006bb3;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-bg-primary text-text-primary font-sans antialiased;
+    margin: 0;
+    height: 100%;
+  }
+}
+export interface ApiResponse<T = unknown> {
+  success: boolean
+  code: string
+  message: string
+  data: T
+}
+
+export interface PageMeta {
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+}
+
+export interface PagedData<T> {
+  content: T[]
+  meta: PageMeta
+}
+import { useSocketClient } from './useSocketClient'
+
+export function usePublish() {
+  const { publish } = useSocketClient()
+  return publish
+}
+import { useQuery } from '@tanstack/react-query'
+
+import { apiClient } from '@/shared/api/client'
+import type { ApiResponse } from '@/shared/types/api'
+
+interface HealthStatus {
+  status: string
+}
+
+async function fetchHealth(): Promise<HealthStatus> {
+  const res = await apiClient.get<ApiResponse<HealthStatus>>('/actuator/health')
+  return res.data.data
+}
+
+export function useHealthCheck() {
+  return useQuery({
+    queryKey: ['health'],
+    queryFn: fetchHealth,
+    staleTime: 1000 * 30,
+    retry: false,
+  })
+}
+import { useEffect, useRef } from 'react'
+import type { IMessage } from '@stomp/stompjs'
+
+import { useSocketClient } from './useSocketClient'
+
+export function useSubscription(topic: string, onMessage: (message: IMessage) => void) {
+  const { subscribe, status } = useSocketClient()
+  const onMessageRef = useRef(onMessage)
+
+  useEffect(() => {
+    onMessageRef.current = onMessage
+  })
+
+  useEffect(() => {
+    if (status !== 'connected') return
+
+    const subscription = subscribe(topic, (msg) => onMessageRef.current(msg))
+
+    return () => {
+      subscription?.unsubscribe()
+    }
+  }, [subscribe, status, topic])
+}
+import { useContext } from 'react'
+import { useAtomValue } from 'jotai'
+
+import { SocketContext } from '@/shared/socket/context'
+import { socketStatusAtom } from '@/shared/socket/socketStatusAtom'
+
+export function useSocketClient() {
+  const { subscribe, publish } = useContext(SocketContext)
+  const status = useAtomValue(socketStatusAtom)
+  return { subscribe, publish, status }
+}
+export class ApiError extends Error {
+  status: number
+  code: string
+
+  constructor(status: number, code: string, message: string) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.code = code
+  }
+}
+
+export class NetworkError extends Error {
+  constructor(message = '네트워크 연결을 확인해 주세요.') {
+    super(message)
+    this.name = 'NetworkError'
+  }
+}
+
+export class UnauthorizedError extends ApiError {
+  constructor(message = '인증이 필요합니다.') {
+    super(401, 'UNAUTHORIZED', message)
+    this.name = 'UnauthorizedError'
+  }
+}
+
+export function isApiError(error: unknown): error is ApiError {
+  return error instanceof ApiError
+}
+
+export function isNetworkError(error: unknown): error is NetworkError {
+  return error instanceof NetworkError
+}
+import axios from 'axios'
+import type { AxiosError, InternalAxiosRequestConfig } from 'axios'
+import type { ApiResponse } from '@/shared/types/api'
+import { ApiError, NetworkError, UnauthorizedError } from './errors'
+
+const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
+
+export const apiClient = axios.create({
+  baseURL: BASE_URL,
+  timeout: 10_000,
+  headers: { 'Content-Type': 'application/json' },
+})
+
+// ─── Token helpers ────────────────────────────────────────────────────────────
+
+const TOKEN_KEY = 'accessToken'
+const REFRESH_KEY = 'refreshToken'
+
+export const tokenStorage = {
+  getAccess: () => localStorage.getItem(TOKEN_KEY),
+  getRefresh: () => localStorage.getItem(REFRESH_KEY),
+  setAccess: (token: string) => localStorage.setItem(TOKEN_KEY, token),
+  setTokens: (access: string, refresh: string) => {
+    localStorage.setItem(TOKEN_KEY, access)
+    localStorage.setItem(REFRESH_KEY, refresh)
+  },
+  clear: () => {
+    localStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(REFRESH_KEY)
+  },
+}
+
+// ─── Refresh queue (prevents parallel refresh races) ─────────────────────────
+
+let isRefreshing = false
+let waitQueue: Array<(token: string) => void> = []
+
+function drainQueue(token: string) {
+  waitQueue.forEach((resolve) => resolve(token))
+  waitQueue = []
+}
+
+async function refreshAccessToken(): Promise<string> {
+  const refreshToken = tokenStorage.getRefresh()
+  if (!refreshToken) throw new UnauthorizedError()
+
+  const res = await axios.post<ApiResponse<{ accessToken: string; tokenType: string }>>(
+    `${BASE_URL}/api/auth/refresh`,
+    { refreshToken },
+  )
+  const newToken = res.data.data.accessToken
+  tokenStorage.setAccess(newToken)
+  return newToken
+}
+
+// ─── Request interceptor ─────────────────────────────────────────────────────
+
+apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  const token = tokenStorage.getAccess()
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+// ─── Response interceptor ────────────────────────────────────────────────────
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error: AxiosError<ApiResponse>) => {
+    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
+
+    if (!error.response) {
+      return Promise.reject(new NetworkError())
+    }
+
+    const { status, data } = error.response
+
+    if (status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        return new Promise((resolve) => {
+          waitQueue.push((token) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`
+            resolve(apiClient(originalRequest))
+          })
+        })
+      }
+
+      originalRequest._retry = true
+      isRefreshing = true
+
+      try {
+        const newToken = await refreshAccessToken()
+        drainQueue(newToken)
+        originalRequest.headers.Authorization = `Bearer ${newToken}`
+        return apiClient(originalRequest)
+      } catch {
+        tokenStorage.clear()
+        waitQueue = []
+        window.location.href = '/login'
+        return Promise.reject(new UnauthorizedError())
+      } finally {
+        isRefreshing = false
+      }
+    }
+
+    const code = data?.code ?? 'UNKNOWN'
+    const message = data?.message ?? '요청 처리 중 오류가 발생했습니다.'
+
+    return Promise.reject(new ApiError(status, code, message))
+  },
+)
+import { createContext } from 'react'
+import type { IMessage, StompSubscription } from '@stomp/stompjs'
+
+export interface SocketContextValue {
+  subscribe: (topic: string, callback: (msg: IMessage) => void) => StompSubscription | undefined
+  publish: (destination: string, body: unknown) => void
+}
+
+export const SocketContext = createContext<SocketContextValue>({
+  subscribe: () => undefined,
+  publish: () => {},
+})
+// ─── 연결 상태 ────────────────────────────────────────────────────────────────
+
+export type SocketStatus = 'connecting' | 'connected' | 'disconnected'
+
+// ─── Destination 상수 ─────────────────────────────────────────────────────────
+
+export const TOPICS = {
+  MESSAGES: (projectId: string) => `/topic/projects/${projectId}/messages`,
+  PRESENCE: (projectId: string) => `/topic/projects/${projectId}/presence`,
+  FILES: (projectId: string) => `/topic/projects/${projectId}/files`,
+} as const
+
+export const DESTINATIONS = {
+  MESSAGE_SEND: (projectId: string) => `/app/projects/${projectId}/messages`,
+  PRESENCE_JOIN: (projectId: string) => `/app/projects/${projectId}/presence/join`,
+  PRESENCE_HEARTBEAT: (projectId: string) => `/app/projects/${projectId}/presence/heartbeat`,
+} as const
+
+// ─── 채팅 ─────────────────────────────────────────────────────────────────────
+
+export interface ProjectMessageCreateRequest {
+  content: string
+}
+
+export type ChatEventType = 'CREATED' | 'DELETED'
+export type MessageType = 'CHAT' | 'LOG'
+
+export interface ProjectMessage {
+  id: number
+  userId: number
+  senderName: string
+  messageType: MessageType
+  content: string
+  createdAt: string
+}
+
+export interface ProjectMessageEventResponse {
+  eventType: ChatEventType
+  message: ProjectMessage | null
+  messageId: number
+}
+
+// ─── Presence ─────────────────────────────────────────────────────────────────
+
+export interface PresenceMember {
+  userId: number
+  userName: string
+  sessionCount: number
+  lastSeenAt: string
+}
+
+export interface ProjectPresenceResponse {
+  projectId: string
+  connectedCount: number
+  members: PresenceMember[]
+  occurredAt: string
+}
+
+// ─── 파일 이벤트 ──────────────────────────────────────────────────────────────
+
+export type FileEventType =
+  | 'FILE_CREATED'
+  | 'FILE_SAVED'
+  | 'FILE_RESTORED'
+  | 'FILE_DELETED'
+  | 'FILE_RENAMED'
+  | 'FILE_MOVED'
+
+export interface ProjectFileEventResponse {
+  eventType: FileEventType
+  projectId: string
+  fileId: number
+  actorId: number
+  actorName: string
+  editRevision: number
+  currentVersion: number
+  occurredAt: string
+  // FILE_CREATED
+  newName?: string
+  newParentId?: number
+  // FILE_RENAMED
+  oldName?: string
+  // FILE_MOVED
+  oldParentId?: number
+  // FILE_DELETED
+  deletedFileIds?: number[]
+}
+import { atom } from 'jotai'
+import type { SocketStatus } from './types'
+
+export const socketStatusAtom = atom<SocketStatus>('disconnected')
+import { Client } from '@stomp/stompjs'
+
+const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8080/ws'
+
+export function createStompClient(getToken: () => string | null): Client {
+  return new Client({
+    brokerURL: WS_URL,
+    connectHeaders: {},
+    reconnectDelay: 5_000,
+    heartbeatIncoming: 10_000,
+    heartbeatOutgoing: 10_000,
+    debug: import.meta.env.DEV ? (msg) => console.debug('[STOMP]', msg) : undefined,
+    beforeConnect: async function (this: Client) {
+      const token = getToken()
+      this.connectHeaders = token ? { Authorization: `Bearer ${token}` } : {}
+    },
+  })
+}
+@import 'tailwindcss';
+
+@theme {
+  /* 기본 배경 */
+  --color-bg-primary: #1e1e1e;
+  --color-bg-secondary: #252526;
+  --color-bg-tertiary: #333333;
+  --color-bg-activity: #2c2c2c;
+  --color-bg-selected: #37373d;
+  --color-bg-hover: #2a2d2e;
+
+  /* 경계선 */
+  --color-border: #3e3e42;
+
+  /* 텍스트 */
+  --color-text-primary: #cccccc;
+  --color-text-muted: #858585;
+
+  /* 강조색 */
+  --color-accent: #007acc;
+
+  /* 파일트리 아이콘 */
+  --color-icon-folder: #dcb67a;
+  --color-icon-ts: #75beff;
+  --color-icon-js: #e8d44d;
+  --color-icon-json: #e8b84b;
+  --color-icon-md: #84cc16;
+
+  /* 터미널 */
+  --color-terminal-green: #a8cc8c;
+  --color-terminal-blue: #6c9ef8;
+
+  /* 코드 토큰 */
+  --color-token-keyword: #c586c0;
+  --color-token-keyword-blue: #569cd6;
+  --color-token-variable: #9cdcfe;
+  --color-token-string: #ce9178;
+  --color-token-function: #dcdcaa;
+  --color-token-type: #4ec9b0;
+}
