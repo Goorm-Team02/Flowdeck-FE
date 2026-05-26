@@ -611,28 +611,8 @@ export const projectService = {
         // 별도의 실 수락 요청 과정 없이 성공 처리로 간주하고 오프라인 싱크만 완료합니다.
         console.log('Accepting invitation: Already active on live backend. Proceeding.')
       } else {
-        // 초대 거절 우회 방식: 내 계정 정보와 프로젝트 멤버 조회를 연동하여 본인의 memberId 획득
-        try {
-          const myProfile = await authService.getMyInfo()
-          const membersList = await this.getProjectMembers(projectId)
-          
-          const myMembership = membersList.find(
-            (m: any) => 
-              (m.email && myProfile.email && m.email.toLowerCase() === myProfile.email.toLowerCase()) ||
-              (m.userId && m.userId === myProfile.id)
-          )
-
-          if (myMembership && myMembership.memberId) {
-            // 기존 Swagger 사양인 DELETE /api/projects/{projectId}/members/{memberId} 호출!
-            await apiClient.delete(`/api/projects/${projectId}/members/${myMembership.memberId}`)
-          } else {
-            // 대체 자진 탈퇴 API 활용
-            await apiClient.delete(`/api/projects/${projectId}/members/me`)
-          }
-        } catch (subErr) {
-          console.warn('Backend rejected direct member remove or not found, falling back to delete/me.')
-          await apiClient.delete(`/api/projects/${projectId}/members/me`)
-        }
+        // 초대 거절(Reject) 처리 시, 본인 스스로 참여를 거절/탈퇴하는 것이므로 자진 탈퇴 API를 안전하게 호출합니다.
+        await apiClient.delete(`/api/projects/${projectId}/members/me`)
       }
     } catch (err) {
       console.warn('Backend server not detected or responding error. Fallback to offline emulating.')
