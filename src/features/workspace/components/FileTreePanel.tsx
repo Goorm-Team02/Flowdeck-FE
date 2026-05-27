@@ -1,4 +1,8 @@
+import { useState } from 'react'
 import type { ReactNode } from 'react'
+import { useParams } from 'react-router-dom'
+import { useFileTree } from '../hooks/useFileTree'
+import type { FileNode } from '../types'
 
 interface TreeNodeProps {
   name: string
@@ -7,9 +11,18 @@ interface TreeNodeProps {
   isSelected?: boolean
   depth?: number
   children?: ReactNode
+  onToggle?: () => void
 }
 
-function TreeNode({ name, isFolder, isOpen, isSelected, depth = 0, children }: TreeNodeProps) {
+function TreeNode({
+  name,
+  isFolder,
+  isOpen,
+  isSelected,
+  depth = 0,
+  children,
+  onToggle,
+}: TreeNodeProps) {
   const ext = name.split('.').pop()
   const fileStrokeColor =
     ext === 'tsx' || ext === 'ts'
@@ -29,6 +42,7 @@ function TreeNode({ name, isFolder, isOpen, isSelected, depth = 0, children }: T
           isSelected ? 'bg-bg-selected text-text-primary' : 'text-text-primary/70 hover:bg-bg-hover'
         }`}
         style={{ paddingLeft: `${8 + depth * 12}px` }}
+        onClick={onToggle}
       >
         {isFolder ? (
           <>
@@ -63,7 +77,29 @@ function TreeNode({ name, isFolder, isOpen, isSelected, depth = 0, children }: T
   )
 }
 
+function FileTreeNode({ node, depth = 0 }: { node: FileNode; depth?: number }) {
+  const [isOpen, setIsOpen] = useState(true)
+  const isFolder = node.type === 'FOLDER'
+
+  return (
+    <TreeNode
+      name={node.name}
+      isFolder={isFolder}
+      isOpen={isOpen}
+      depth={depth}
+      onToggle={() => isFolder && setIsOpen((prev) => !prev)}
+    >
+      {node.children?.map((child) => (
+        <FileTreeNode key={child.id} node={child} depth={depth + 1} />
+      ))}
+    </TreeNode>
+  )
+}
+
 export default function FileTreePanel() {
+  const { projectId = '' } = useParams<{ projectId: string }>()
+  const { data: tree, isLoading, isError } = useFileTree(projectId)
+
   return (
     <div className="w-56 flex flex-col bg-bg-secondary border-r border-border shrink-0 overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2 shrink-0">
@@ -76,18 +112,18 @@ export default function FileTreePanel() {
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        <TreeNode name="src" isFolder isOpen depth={0}>
-          <TreeNode name="components" isFolder isOpen depth={1}>
-            <TreeNode name="Button.tsx" depth={2} />
-            <TreeNode name="Header.tsx" depth={2} />
-            <TreeNode name="Editor.jsx" isSelected depth={2} />
-          </TreeNode>
-          <TreeNode name="App.tsx" depth={1} />
-        </TreeNode>
-        <TreeNode name="public" isFolder isOpen depth={0} />
-        <TreeNode name="favicon.ico" depth={0} />
-        <TreeNode name="package.json" depth={0} />
-        <TreeNode name="README.md" depth={0} />
+        {isLoading && (
+          <p className="px-3 py-2 text-[12px] text-text-primary/30">불러오는 중...</p>
+        )}
+        {isError && (
+          <p className="px-3 py-2 text-[12px] text-red-400/70">파일 트리를 불러올 수 없습니다.</p>
+        )}
+        {!isLoading && !isError && (!tree || tree.length === 0) && (
+          <p className="px-3 py-2 text-[12px] text-text-primary/30">파일이 없습니다.</p>
+        )}
+        {tree?.map((node) => (
+          <FileTreeNode key={node.id} node={node} depth={0} />
+        ))}
       </div>
     </div>
   )

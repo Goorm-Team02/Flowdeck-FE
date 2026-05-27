@@ -1,33 +1,11 @@
 import { useState } from 'react'
-
-const MOCK_RESULTS = [
-  {
-    file: 'src/components/Editor.jsx',
-    matches: [
-      { line: 2, text: "import MonacoEditor from '@monaco-editor/react'" },
-      { line: 5, text: '  return <MonacoEditor' },
-    ],
-  },
-  {
-    file: 'src/App.tsx',
-    matches: [{ line: 8, text: "import Editor from './components/Editor'" }],
-  },
-  {
-    file: 'package.json',
-    matches: [{ line: 12, text: '    "@monaco-editor/react": "^4.6.0"' }],
-  },
-]
+import { useParams } from 'react-router-dom'
+import { useFileSearch } from '../hooks/useFileSearch'
 
 export default function SearchPanel() {
+  const { projectId = '' } = useParams<{ projectId: string }>()
   const [query, setQuery] = useState('')
-
-  const filtered = query.trim()
-    ? MOCK_RESULTS.filter(
-        (r) =>
-          r.file.toLowerCase().includes(query.toLowerCase()) ||
-          r.matches.some((m) => m.text.toLowerCase().includes(query.toLowerCase())),
-      )
-    : []
+  const { data: results, isLoading, isFetching } = useFileSearch(projectId, query)
 
   return (
     <div className="w-56 flex flex-col bg-bg-secondary border-r border-border shrink-0 overflow-hidden">
@@ -71,45 +49,45 @@ export default function SearchPanel() {
       <div className="flex-1 overflow-y-auto">
         {query.trim() === '' ? (
           <p className="px-3 text-[12px] text-text-primary/30">검색어를 입력하세요</p>
-        ) : filtered.length === 0 ? (
+        ) : isLoading || isFetching ? (
+          <p className="px-3 text-[12px] text-text-primary/30">검색 중...</p>
+        ) : !results || results.length === 0 ? (
           <p className="px-3 text-[12px] text-text-primary/30">결과 없음</p>
         ) : (
-          <div className="space-y-3">
-            {filtered.map((result) => (
-              <div key={result.file}>
-                <div className="flex items-center gap-1.5 px-3 py-1">
+          <div className="space-y-1">
+            {results.map((result) => {
+              const ext = result.name.split('.').pop()
+              const strokeColor =
+                ext === 'tsx' || ext === 'ts'
+                  ? 'var(--color-icon-ts)'
+                  : ext === 'jsx' || ext === 'js'
+                    ? 'var(--color-icon-js)'
+                    : 'var(--color-text-primary)'
+
+              return (
+                <button
+                  key={result.id}
+                  className="w-full flex items-center gap-1.5 px-3 py-1.5 hover:bg-bg-hover text-left"
+                >
                   <svg
                     width="12"
                     height="12"
                     viewBox="0 0 24 24"
                     fill="none"
-                    stroke="var(--color-icon-js)"
                     strokeWidth="1.5"
                     className="shrink-0"
+                    style={{ stroke: strokeColor }}
                   >
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                     <polyline points="14 2 14 8 20 8" />
                   </svg>
-                  <span className="text-[12px] text-text-primary/80 truncate">{result.file}</span>
-                  <span className="ml-auto text-[11px] text-text-primary/30 shrink-0">
-                    {result.matches.length}
+                  <span className="text-[12px] text-text-primary/80 truncate">{result.name}</span>
+                  <span className="ml-auto text-[11px] text-text-primary/40 shrink-0 truncate max-w-[80px]">
+                    {result.path}
                   </span>
-                </div>
-                {result.matches.map((match) => (
-                  <button
-                    key={match.line}
-                    className="w-full flex items-start gap-2 px-3 py-0.5 hover:bg-bg-hover text-left"
-                  >
-                    <span className="text-[11px] text-text-primary/30 shrink-0 w-5 text-right mt-px">
-                      {match.line}
-                    </span>
-                    <span className="text-[12px] text-text-primary/60 truncate font-mono">
-                      {match.text}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            ))}
+                </button>
+              )
+            })}
           </div>
         )}
       </div>
