@@ -1,6 +1,10 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
+
+import { useAtom } from 'jotai'
 import { useParams } from 'react-router-dom'
+
+import { openFileIdAtom } from '../stores/openFileAtom'
 import { useFileTree } from '../hooks/useFileTree'
 import type { FileNode } from '../types'
 
@@ -77,20 +81,42 @@ function TreeNode({
   )
 }
 
-function FileTreeNode({ node, depth = 0 }: { node: FileNode; depth?: number }) {
+interface FileTreeNodeProps {
+  node: FileNode
+  depth?: number
+  openFileId: number | null
+  onFileClick: (id: number) => void
+}
+
+function FileTreeNode({ node, depth = 0, openFileId, onFileClick }: FileTreeNodeProps) {
   const [isOpen, setIsOpen] = useState(true)
   const isFolder = node.type === 'FOLDER'
+
+  const handleToggle = () => {
+    if (isFolder) {
+      setIsOpen((prev) => !prev)
+    } else {
+      onFileClick(node.id)
+    }
+  }
 
   return (
     <TreeNode
       name={node.name}
       isFolder={isFolder}
       isOpen={isOpen}
+      isSelected={!isFolder && openFileId === node.id}
       depth={depth}
-      onToggle={() => isFolder && setIsOpen((prev) => !prev)}
+      onToggle={handleToggle}
     >
       {node.children?.map((child) => (
-        <FileTreeNode key={child.id} node={child} depth={depth + 1} />
+        <FileTreeNode
+          key={child.id}
+          node={child}
+          depth={depth + 1}
+          openFileId={openFileId}
+          onFileClick={onFileClick}
+        />
       ))}
     </TreeNode>
   )
@@ -99,6 +125,7 @@ function FileTreeNode({ node, depth = 0 }: { node: FileNode; depth?: number }) {
 export default function FileTreePanel() {
   const { projectId = '' } = useParams<{ projectId: string }>()
   const { data: tree, isLoading, isError } = useFileTree(projectId)
+  const [openFileId, setOpenFileId] = useAtom(openFileIdAtom)
 
   return (
     <div className="w-56 flex flex-col bg-bg-secondary border-r border-border shrink-0 overflow-hidden">
@@ -122,7 +149,13 @@ export default function FileTreePanel() {
           <p className="px-3 py-2 text-[12px] text-text-primary/30">파일이 없습니다.</p>
         )}
         {tree?.map((node) => (
-          <FileTreeNode key={node.id} node={node} depth={0} />
+          <FileTreeNode
+            key={node.id}
+            node={node}
+            depth={0}
+            openFileId={openFileId}
+            onFileClick={setOpenFileId}
+          />
         ))}
       </div>
     </div>

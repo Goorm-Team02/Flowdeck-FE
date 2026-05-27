@@ -16,3 +16,13 @@ export interface FileSearchResult {
   type: FileNodeType
   path: string
 }
+
+export interface FileDetail {
+  id: number
+  name: string
+  type: FileNodeType
+  parentId: number | null
+  editRevision: number
+  currentVersion: number
+  content: string
+}
