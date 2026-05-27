@@ -8,3 +8,16 @@ export async function getFile(projectId: string, fileId: number): Promise<FileDe
   )
   return res.data.data
 }
+
+export async function saveFile(
+  projectId: string,
+  fileId: number,
+  content: string,
+  baseRevision: number,
+): Promise<FileDetail> {
+  const res = await apiClient.put<ApiResponse<FileDetail>>(
+    `/api/projects/${projectId}/files/${fileId}`,
+    { content, baseRevision },
+  )
+  return res.data.data
+}
