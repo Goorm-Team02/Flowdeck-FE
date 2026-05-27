@@ -79,23 +79,11 @@ export default function ChatPanel() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const emojiPickerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
-
-  useEffect(() => {
-    if (!showEmoji) return
-    const handler = (e: MouseEvent) => {
-      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
-        setShowEmoji(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [showEmoji])
 
   const sendMessage = () => {
     const text = input.trim()
@@ -213,22 +201,22 @@ export default function ChatPanel() {
         <div className="relative">
           {/* Emoji picker */}
           {showEmoji && (
-            <div
-              ref={emojiPickerRef}
-              className="absolute bottom-full left-0 mb-2 bg-bg-secondary border border-border rounded-xl p-3 shadow-2xl z-10 w-[252px]"
-            >
-              <div className="grid grid-cols-8 gap-0.5">
-                {EMOJIS.map((emoji) => (
-                  <button
-                    key={emoji}
-                    onClick={() => insertEmoji(emoji)}
-                    className="text-[18px] w-7 h-7 flex items-center justify-center hover:bg-bg-tertiary rounded transition-colors"
-                  >
-                    {emoji}
-                  </button>
-                ))}
+            <>
+              <div className="fixed inset-0 z-[9]" onClick={() => setShowEmoji(false)} />
+              <div className="absolute bottom-full left-0 mb-2 bg-bg-secondary border border-border rounded-xl p-3 shadow-2xl z-10 w-[252px]">
+                <div className="grid grid-cols-8 gap-0.5">
+                  {EMOJIS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      onClick={() => insertEmoji(emoji)}
+                      className="text-[18px] w-7 h-7 flex items-center justify-center hover:bg-bg-tertiary rounded transition-colors"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            </>
           )}
 
           <div className="rounded-lg border border-border bg-bg-tertiary overflow-hidden">
