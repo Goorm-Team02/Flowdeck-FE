@@ -57,3 +57,15 @@ export async function deleteFile(
     params: { expectedRevision },
   })
 }
+
+export async function moveFile(
+  projectId: string,
+  fileId: number,
+  newParentId: number | null,
+): Promise<FileNode> {
+  const res = await apiClient.patch<ApiResponse<FileNode>>(
+    `/api/projects/${projectId}/files/${fileId}/move`,
+    { newParentId },
+  )
+  return res.data.data
+}

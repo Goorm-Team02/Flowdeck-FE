@@ -9,9 +9,21 @@ import { isApiError } from '@/shared/api/errors'
 import { useCreateFile } from '../hooks/useCreateFile'
 import { useDeleteFile } from '../hooks/useDeleteFile'
 import { useFileTree } from '../hooks/useFileTree'
+import { useMoveFile } from '../hooks/useMoveFile'
 import { useRenameFile } from '../hooks/useRenameFile'
 import { openFileIdAtom } from '../stores/openFileAtom'
 import type { FileNode, FileNodeType } from '../types'
+
+// ─── 드래그 앤 드롭 핸들러 묶음 ──────────────────────────────────────────────
+
+interface DragHandlers {
+  draggingId: number | null
+  dropTargetId: number | 'root' | null
+  onDragStart: (nodeId: number) => void
+  onDragEnd: () => void
+  onDragOver: (targetId: number | 'root') => void
+  onDrop: (targetId: number | 'root') => void
+}
 
 // VIEWER 권한 여부 — 추후 auth 연동 시 실제 권한으로 교체
 const useIsViewer = () => false
@@ -122,6 +134,7 @@ interface FileTreeNodeProps {
   depth: number
   openFileId: number | null
   isViewer: boolean
+  drag: DragHandlers
   onFileClick: (id: number) => void
   onCreate: (parentId: number | null, name: string, type: FileNodeType) => void
   onRename: (fileId: number, name: string) => void
@@ -133,6 +146,7 @@ function FileTreeNode({
   depth,
   openFileId,
   isViewer,
+  drag,
   onFileClick,
   onCreate,
   onRename,
@@ -184,15 +198,31 @@ function FileTreeNode({
         />
       ) : (
         <div
+          draggable={!isViewer}
           className={`group flex items-center gap-1.5 py-[3px] cursor-pointer text-[13px] select-none ${
             openFileId === node.id && !isFolder
               ? 'bg-bg-selected text-text-primary'
-              : 'text-text-primary/70 hover:bg-bg-hover'
+              : isFolder && drag.dropTargetId === node.id
+                ? 'bg-accent/15 text-text-primary outline outline-1 outline-accent/50'
+                : 'text-text-primary/70 hover:bg-bg-hover'
           }`}
           style={{ paddingLeft: `${8 + depth * 12}px` }}
           onClick={handleRowClick}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
+          onDragStart={(e) => { e.stopPropagation(); drag.onDragStart(node.id) }}
+          onDragEnd={(e) => { e.stopPropagation(); drag.onDragEnd() }}
+          onDragOver={isFolder ? (e) => {
+            if (drag.draggingId === node.id) return
+            e.preventDefault()
+            e.stopPropagation()
+            drag.onDragOver(node.id)
+          } : undefined}
+          onDrop={isFolder ? (e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            drag.onDrop(node.id)
+          } : undefined}
         >
           {isFolder ? (
             <>
@@ -298,6 +328,7 @@ function FileTreeNode({
               depth={depth + 1}
               openFileId={openFileId}
               isViewer={isViewer}
+              drag={drag}
               onFileClick={onFileClick}
               onCreate={onCreate}
               onRename={onRename}
@@ -329,9 +360,29 @@ export default function FileTreePanel() {
   const { mutate: create } = useCreateFile(projectId)
   const { mutate: rename } = useRenameFile(projectId)
   const { mutate: remove, error: deleteError } = useDeleteFile(projectId)
+  const { mutate: move } = useMoveFile(projectId)
 
   const [deleteTarget, setDeleteTarget] = useState<FileNode | null>(null)
   const [rootCreatingType, setRootCreatingType] = useState<FileNodeType | null>(null)
+
+  const draggingIdRef = useRef<number | null>(null)
+  const [dropTargetId, setDropTargetId] = useState<number | 'root' | null>(null)
+
+  const dragHandlers: DragHandlers = {
+    draggingId: draggingIdRef.current,
+    dropTargetId,
+    onDragStart: (nodeId) => { draggingIdRef.current = nodeId },
+    onDragEnd: () => { draggingIdRef.current = null; setDropTargetId(null) },
+    onDragOver: (targetId) => setDropTargetId(targetId),
+    onDrop: (targetId) => {
+      const fileId = draggingIdRef.current
+      if (!fileId) return
+      const newParentId = targetId === 'root' ? null : targetId
+      if (newParentId !== fileId) move({ fileId, newParentId })
+      draggingIdRef.current = null
+      setDropTargetId(null)
+    },
+  }
 
   const handleCreate = (parentId: number | null, name: string, type: FileNodeType) => {
     create({ parentId, name, type })
@@ -386,8 +437,15 @@ export default function FileTreePanel() {
           )}
         </div>
 
-        {/* 트리 */}
-        <div className="flex-1 overflow-y-auto">
+        {/* 트리 (루트 드롭존 포함) */}
+        <div
+          className={`flex-1 overflow-y-auto ${dropTargetId === 'root' ? 'outline outline-1 outline-accent/40' : ''}`}
+          onDragOver={!isViewer ? (e) => { e.preventDefault(); dragHandlers.onDragOver('root') } : undefined}
+          onDrop={!isViewer ? (e) => { e.preventDefault(); dragHandlers.onDrop('root') } : undefined}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTargetId(null)
+          }}
+        >
           {isLoading && (
             <p className="px-3 py-2 text-[12px] text-text-primary/30">불러오는 중...</p>
           )}
@@ -404,6 +462,7 @@ export default function FileTreePanel() {
               depth={0}
               openFileId={openFileId}
               isViewer={isViewer}
+              drag={dragHandlers}
               onFileClick={setOpenFileId}
               onCreate={handleCreate}
               onRename={handleRename}
