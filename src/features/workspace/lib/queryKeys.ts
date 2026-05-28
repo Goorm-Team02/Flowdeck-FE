@@ -15,3 +15,7 @@ export const fileVersionKeys = {
   timeline: (projectId: string, fileId: number) =>
     ['projects', projectId, 'files', fileId, 'versions', 'timeline'] as const,
 }
+
+export const chatKeys = {
+  messages: (projectId: string) => ['projects', projectId, 'messages'] as const,
+}

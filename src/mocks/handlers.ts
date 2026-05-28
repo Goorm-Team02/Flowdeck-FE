@@ -7,6 +7,7 @@ import type {
   FileVersionDetail,
   TimelineVersionCard,
 } from '@/features/workspace/types'
+import type { ProjectMessage } from '@/shared/socket/types'
 import type { ApiResponse } from '@/shared/types/api'
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
@@ -184,6 +185,42 @@ const mockTimeline: TimelineVersionCard[] = [
   },
 ]
 
+const mockMessages: ProjectMessage[] = [
+  {
+    id: 1,
+    userId: 10,
+    senderName: '김민경',
+    messageType: 'CHAT',
+    content:
+      'Editor.jsx에서 Yjs 적용한 부분 한번 봐주세요. v4 슬라이드에서 변경 내역 확인 가능해요.',
+    createdAt: '2026-05-28T01:21:00Z',
+  },
+  {
+    id: 2,
+    userId: 11,
+    senderName: '이지훈',
+    messageType: 'CHAT',
+    content: '확인했어요 👍 WebSocket 연결 부분은 잘 합쳐졌네요.',
+    createdAt: '2026-05-28T01:24:00Z',
+  },
+  {
+    id: 3,
+    userId: 10,
+    senderName: '김민경',
+    messageType: 'LOG',
+    content: 'App.tsx가 v3으로 복원됐습니다.',
+    createdAt: '2026-05-28T01:28:00Z',
+  },
+  {
+    id: 4,
+    userId: 12,
+    senderName: '박지훈',
+    messageType: 'CHAT',
+    content: '저는 README 업데이트 맡을게요!',
+    createdAt: '2026-05-28T01:32:00Z',
+  },
+]
+
 function ok<T>(data: T): HttpResponse<ApiResponse<T>> {
   const body: ApiResponse<T> = { success: true, code: 'SUCCESS', message: '', data }
   return HttpResponse.json(body)
@@ -249,6 +286,16 @@ export const handlers = [
       )
     const detail: FileVersionDetail = { ...version, content: mockVersionContents[versionId] ?? '' }
     return ok(detail)
+  }),
+
+  // Messages
+  http.get(`${BASE}/api/projects/:projectId/messages`, ({ params }) => {
+    if (params.projectId !== PROJECT_ID)
+      return HttpResponse.json(
+        { success: false, code: 'NOT_FOUND', message: 'Project not found', data: null },
+        { status: 404 },
+      )
+    return ok({ messages: mockMessages })
   }),
 
   // Create version
