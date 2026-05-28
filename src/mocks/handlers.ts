@@ -298,6 +298,19 @@ export const handlers = [
     return ok({ messages: mockMessages })
   }),
 
+  // Delete message
+  http.delete(`${BASE}/api/projects/:projectId/messages/:messageId`, ({ params }) => {
+    const messageId = Number(params.messageId)
+    const idx = mockMessages.findIndex((m) => m.id === messageId)
+    if (idx === -1)
+      return HttpResponse.json(
+        { success: false, code: 'NOT_FOUND', message: 'Message not found', data: null },
+        { status: 404 },
+      )
+    mockMessages.splice(idx, 1)
+    return ok({})
+  }),
+
   // Create version
   http.post(`${BASE}/api/projects/:projectId/files/:fileId/versions`, ({ params }) => {
     const fileId = Number(params.fileId)

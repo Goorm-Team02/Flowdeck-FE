@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
+import { isApiError } from '@/shared/api/errors'
+
 import { useChatSocket } from '../hooks/useChatSocket'
+import { useDeleteMessage } from '../hooks/useDeleteMessage'
 import { useMessages } from '../hooks/useMessages'
 import { usePublishMessage } from '../hooks/usePublishMessage'
 
@@ -101,10 +104,13 @@ export default function ChatPanel() {
   const { data: messages = [], isLoading, isError } = useMessages(projectId)
   useChatSocket(projectId)
   const publishMessage = usePublishMessage(projectId)
+  const { mutate: deleteMsg, isPending: isDeleting } = useDeleteMessage(projectId)
 
   const [input, setInput] = useState('')
   const [showEmoji, setShowEmoji] = useState(false)
   const [attachedFile, setAttachedFile] = useState<AttachedFile | null>(null)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -130,6 +136,21 @@ export default function ChatPanel() {
     publishMessage(text)
     setInput('')
     setAttachedFile(null)
+  }
+
+  const handleDeleteConfirm = (messageId: number) => {
+    deleteMsg(messageId, {
+      onSuccess: () => setDeletingId(null),
+      onError: (error) => {
+        setDeletingId(null)
+        if (isApiError(error) && error.status === 403) {
+          setDeleteError('삭제 권한이 없습니다.')
+        } else {
+          setDeleteError('메시지 삭제 중 오류가 발생했습니다.')
+        }
+        setTimeout(() => setDeleteError(null), 3000)
+      },
+    })
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -158,6 +179,13 @@ export default function ChatPanel() {
 
   return (
     <div className="w-72 flex flex-col bg-bg-secondary border-l border-border shrink-0">
+      {/* 삭제 에러 토스트 */}
+      {deleteError && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-lg shadow-lg text-[13px] border bg-bg-secondary border-red-500/40 text-red-400">
+          {deleteError}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-border shrink-0">
         <div className="flex items-center gap-2">
@@ -202,7 +230,7 @@ export default function ChatPanel() {
                 <div className="flex-1 h-px bg-border" />
               </div>
             ) : (
-              <div key={msg.id} className="flex gap-2.5">
+              <div key={msg.id} className="group flex gap-2.5">
                 <div
                   className={`w-8 h-8 rounded-full ${avatarColor(msg.userId)} flex items-center justify-center text-white text-[11px] font-bold shrink-0 mt-0.5`}
                 >
@@ -223,7 +251,48 @@ export default function ChatPanel() {
                   <p className="text-[13px] text-text-primary/75 leading-relaxed break-words">
                     {msg.content}
                   </p>
+                  {/* 인라인 삭제 확인 */}
+                  {deletingId === msg.id && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[11px] text-text-primary/50">삭제할까요?</span>
+                      <button
+                        onClick={() => handleDeleteConfirm(msg.id)}
+                        disabled={isDeleting}
+                        className="text-[11px] text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
+                      >
+                        확인
+                      </button>
+                      <button
+                        onClick={() => setDeletingId(null)}
+                        className="text-[11px] text-text-primary/40 hover:text-text-primary/70 transition-colors"
+                      >
+                        취소
+                      </button>
+                    </div>
+                  )}
                 </div>
+                {/* 삭제 버튼 — 본인 메시지에만, 호버 시 노출 */}
+                {currentUserId === msg.userId && deletingId !== msg.id && (
+                  <button
+                    onClick={() => setDeletingId(msg.id)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5 p-0.5 rounded text-text-primary/30 hover:text-red-400 hover:bg-bg-tertiary"
+                    title="메시지 삭제"
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6l-1 14H6L5 6" />
+                      <path d="M10 11v6M14 11v6" />
+                      <path d="M9 6V4h6v2" />
+                    </svg>
+                  </button>
+                )}
               </div>
             ),
           )}
