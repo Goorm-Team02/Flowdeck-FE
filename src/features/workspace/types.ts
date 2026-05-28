@@ -26,3 +26,28 @@ export interface FileDetail {
   currentVersion: number
   content: string
 }
+
+export interface FileVersion {
+  id: number
+  version: number
+  authorName: string
+  savedAt: string
+}
+
+export interface FileVersionDetail extends FileVersion {
+  content: string
+}
+
+export type DiffLineType = 'ADDED' | 'REMOVED' | 'UNCHANGED'
+
+export interface DiffLine {
+  type: DiffLineType
+  lineNumber: number
+  content: string
+}
+
+export interface FileVersionDiff {
+  from: number
+  to: number
+  lines: DiffLine[]
+}
