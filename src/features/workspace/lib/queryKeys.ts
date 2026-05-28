@@ -9,4 +9,8 @@ export const fileTreeKeys = {
 export const fileVersionKeys = {
   all: (projectId: string, fileId: number) =>
     ['projects', projectId, 'files', fileId, 'versions'] as const,
+  detail: (projectId: string, fileId: number, versionId: number) =>
+    ['projects', projectId, 'files', fileId, 'versions', versionId] as const,
+  diff: (projectId: string, fileId: number, from: number, to: number) =>
+    ['projects', projectId, 'files', fileId, 'versions', 'diff', from, to] as const,
 }
