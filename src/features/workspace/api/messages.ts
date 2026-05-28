@@ -12,3 +12,7 @@ export async function getMessages(projectId: string): Promise<ProjectMessage[]> 
   )
   return res.data.data.messages
 }
+
+export async function deleteMessage(projectId: string, messageId: number): Promise<void> {
+  await apiClient.delete(`/api/projects/${projectId}/messages/${messageId}`)
+}
