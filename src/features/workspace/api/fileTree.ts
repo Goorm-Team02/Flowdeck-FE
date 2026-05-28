@@ -1,5 +1,6 @@
 import { apiClient } from '@/shared/api/client'
 import type { ApiResponse } from '@/shared/types/api'
+
 import type { FileNode, FileSearchResult } from '../types'
 
 export async function getFileTree(projectId: string): Promise<FileNode[]> {

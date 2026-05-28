@@ -1,6 +1,12 @@
-import { http, HttpResponse } from 'msw'
+import { HttpResponse, http } from 'msw'
 
-import type { FileDetail, FileNode, FileVersion, FileVersionDetail, TimelineVersionCard } from '@/features/workspace/types'
+import type {
+  FileDetail,
+  FileNode,
+  FileVersion,
+  FileVersionDetail,
+  TimelineVersionCard,
+} from '@/features/workspace/types'
 import type { ApiResponse } from '@/shared/types/api'
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
@@ -186,7 +192,11 @@ function ok<T>(data: T): HttpResponse<ApiResponse<T>> {
 export const handlers = [
   // File tree
   http.get(`${BASE}/api/projects/:projectId/files`, ({ params }) => {
-    if (params.projectId !== PROJECT_ID) return HttpResponse.json({ success: false, code: 'NOT_FOUND', message: 'Project not found', data: null }, { status: 404 })
+    if (params.projectId !== PROJECT_ID)
+      return HttpResponse.json(
+        { success: false, code: 'NOT_FOUND', message: 'Project not found', data: null },
+        { status: 404 },
+      )
     return ok(mockFileTree)
   }),
 
@@ -194,7 +204,11 @@ export const handlers = [
   http.get(`${BASE}/api/projects/:projectId/files/:fileId`, ({ params }) => {
     const id = Number(params.fileId)
     const file = mockFiles[id]
-    if (!file) return HttpResponse.json({ success: false, code: 'NOT_FOUND', message: 'File not found', data: null }, { status: 404 })
+    if (!file)
+      return HttpResponse.json(
+        { success: false, code: 'NOT_FOUND', message: 'File not found', data: null },
+        { status: 404 },
+      )
     return ok(file)
   }),
 
@@ -202,8 +216,12 @@ export const handlers = [
   http.put(`${BASE}/api/projects/:projectId/files/:fileId`, async ({ params, request }) => {
     const id = Number(params.fileId)
     const file = mockFiles[id]
-    if (!file) return HttpResponse.json({ success: false, code: 'NOT_FOUND', message: 'File not found', data: null }, { status: 404 })
-    const body = await request.json() as { content: string; baseRevision: number }
+    if (!file)
+      return HttpResponse.json(
+        { success: false, code: 'NOT_FOUND', message: 'File not found', data: null },
+        { status: 404 },
+      )
+    const body = (await request.json()) as { content: string; baseRevision: number }
     mockFiles[id] = { ...file, content: body.content, editRevision: file.editRevision + 1 }
     return ok(mockFiles[id])
   }),
@@ -224,7 +242,11 @@ export const handlers = [
   http.get(`${BASE}/api/projects/:projectId/files/:fileId/versions/:versionId`, ({ params }) => {
     const versionId = Number(params.versionId)
     const version = mockVersions.find((v) => v.id === versionId)
-    if (!version) return HttpResponse.json({ success: false, code: 'NOT_FOUND', message: 'Version not found', data: null }, { status: 404 })
+    if (!version)
+      return HttpResponse.json(
+        { success: false, code: 'NOT_FOUND', message: 'Version not found', data: null },
+        { status: 404 },
+      )
     const detail: FileVersionDetail = { ...version, content: mockVersionContents[versionId] ?? '' }
     return ok(detail)
   }),

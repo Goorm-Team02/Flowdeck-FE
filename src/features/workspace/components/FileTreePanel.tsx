@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
+import { useParams } from 'react-router-dom'
 
 import { useAtom } from 'jotai'
-import { useParams } from 'react-router-dom'
 
 import { isApiError } from '@/shared/api/errors'
 
@@ -105,8 +105,8 @@ function DeleteConfirmModal({ name, onConfirm, onCancel }: DeleteConfirmProps) {
       <div className="bg-bg-secondary border border-border rounded-xl p-6 w-72 shadow-2xl">
         <h3 className="text-[15px] font-semibold text-text-primary mb-2">삭제 확인</h3>
         <p className="text-[13px] text-text-primary/60 mb-5 leading-relaxed">
-          <span className="text-text-primary font-medium">{name}</span>을(를) 삭제합니다.
-          이 작업은 되돌릴 수 없습니다.
+          <span className="text-text-primary font-medium">{name}</span>을(를) 삭제합니다. 이 작업은
+          되돌릴 수 없습니다.
         </p>
         <div className="flex gap-2 justify-end">
           <button
@@ -210,31 +210,40 @@ function FileTreeNode({
           onClick={handleRowClick}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
-          onDragStart={(e) => { e.stopPropagation(); drag.onDragStart(node.id) }}
-          onDragEnd={(e) => { e.stopPropagation(); drag.onDragEnd() }}
-          onDragOver={isFolder ? (e) => {
-            if (drag.draggingId === node.id) return
-            e.preventDefault()
+          onDragStart={(e) => {
             e.stopPropagation()
-            drag.onDragOver(node.id)
-          } : undefined}
-          onDrop={isFolder ? (e) => {
-            e.preventDefault()
+            drag.onDragStart(node.id)
+          }}
+          onDragEnd={(e) => {
             e.stopPropagation()
-            drag.onDrop(node.id)
-          } : undefined}
+            drag.onDragEnd()
+          }}
+          onDragOver={
+            isFolder
+              ? (e) => {
+                  if (drag.draggingId === node.id) return
+                  e.preventDefault()
+                  e.stopPropagation()
+                  drag.onDragOver(node.id)
+                }
+              : undefined
+          }
+          onDrop={
+            isFolder
+              ? (e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  drag.onDrop(node.id)
+                }
+              : undefined
+          }
         >
           {isFolder ? (
             <>
               <span className="text-text-primary/30 text-[10px] w-3 shrink-0">
                 {isOpen ? '▾' : '▸'}
               </span>
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                className="fill-icon-folder shrink-0"
-              >
+              <svg width="14" height="14" viewBox="0 0 24 24" className="fill-icon-folder shrink-0">
                 <path d="M10 4H2v16h20V6H12l-2-2z" />
               </svg>
             </>
@@ -268,10 +277,20 @@ function FileTreeNode({
                 <>
                   <button
                     title="새 파일"
-                    onClick={() => { setIsOpen(true); setCreatingType('FILE') }}
+                    onClick={() => {
+                      setIsOpen(true)
+                      setCreatingType('FILE')
+                    }}
                     className="p-0.5 rounded text-text-primary/40 hover:text-text-primary/80 hover:bg-bg-tertiary transition-colors"
                   >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
                       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                       <polyline points="14 2 14 8 20 8" />
                       <line x1="12" y1="18" x2="12" y2="12" />
@@ -280,10 +299,20 @@ function FileTreeNode({
                   </button>
                   <button
                     title="새 폴더"
-                    onClick={() => { setIsOpen(true); setCreatingType('FOLDER') }}
+                    onClick={() => {
+                      setIsOpen(true)
+                      setCreatingType('FOLDER')
+                    }}
                     className="p-0.5 rounded text-text-primary/40 hover:text-text-primary/80 hover:bg-bg-tertiary transition-colors"
                   >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
                       <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                       <line x1="12" y1="11" x2="12" y2="17" />
                       <line x1="9" y1="14" x2="15" y2="14" />
@@ -296,7 +325,14 @@ function FileTreeNode({
                 onClick={() => setIsRenaming(true)}
                 className="p-0.5 rounded text-text-primary/40 hover:text-text-primary/80 hover:bg-bg-tertiary transition-colors"
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                 </svg>
@@ -306,7 +342,14 @@ function FileTreeNode({
                 onClick={() => onDeleteRequest(node)}
                 className="p-0.5 rounded text-text-primary/40 hover:text-red-400 hover:bg-bg-tertiary transition-colors"
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   <polyline points="3 6 5 6 21 6" />
                   <path d="M19 6l-1 14H6L5 6" />
                   <path d="M10 11v6M14 11v6" />
@@ -365,21 +408,25 @@ export default function FileTreePanel() {
   const [deleteTarget, setDeleteTarget] = useState<FileNode | null>(null)
   const [rootCreatingType, setRootCreatingType] = useState<FileNodeType | null>(null)
 
-  const draggingIdRef = useRef<number | null>(null)
+  const [draggingId, setDraggingId] = useState<number | null>(null)
   const [dropTargetId, setDropTargetId] = useState<number | 'root' | null>(null)
 
   const dragHandlers: DragHandlers = {
-    draggingId: draggingIdRef.current,
+    draggingId,
     dropTargetId,
-    onDragStart: (nodeId) => { draggingIdRef.current = nodeId },
-    onDragEnd: () => { draggingIdRef.current = null; setDropTargetId(null) },
+    onDragStart: (nodeId) => {
+      setDraggingId(nodeId)
+    },
+    onDragEnd: () => {
+      setDraggingId(null)
+      setDropTargetId(null)
+    },
     onDragOver: (targetId) => setDropTargetId(targetId),
     onDrop: (targetId) => {
-      const fileId = draggingIdRef.current
-      if (!fileId) return
+      if (!draggingId) return
       const newParentId = targetId === 'root' ? null : targetId
-      if (newParentId !== fileId) move({ fileId, newParentId })
-      draggingIdRef.current = null
+      if (newParentId !== draggingId) move({ fileId: draggingId, newParentId })
+      setDraggingId(null)
       setDropTargetId(null)
     },
   }
@@ -415,7 +462,14 @@ export default function FileTreePanel() {
                 onClick={() => setRootCreatingType('FILE')}
                 className="p-0.5 rounded text-text-primary/30 hover:text-text-primary/70 hover:bg-bg-tertiary transition-colors"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                   <polyline points="14 2 14 8 20 8" />
                   <line x1="12" y1="18" x2="12" y2="12" />
@@ -427,7 +481,14 @@ export default function FileTreePanel() {
                 onClick={() => setRootCreatingType('FOLDER')}
                 className="p-0.5 rounded text-text-primary/30 hover:text-text-primary/70 hover:bg-bg-tertiary transition-colors"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
                   <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                   <line x1="12" y1="11" x2="12" y2="17" />
                   <line x1="9" y1="14" x2="15" y2="14" />
@@ -440,8 +501,22 @@ export default function FileTreePanel() {
         {/* 트리 (루트 드롭존 포함) */}
         <div
           className={`flex-1 overflow-y-auto ${dropTargetId === 'root' ? 'outline outline-1 outline-accent/40' : ''}`}
-          onDragOver={!isViewer ? (e) => { e.preventDefault(); dragHandlers.onDragOver('root') } : undefined}
-          onDrop={!isViewer ? (e) => { e.preventDefault(); dragHandlers.onDrop('root') } : undefined}
+          onDragOver={
+            !isViewer
+              ? (e) => {
+                  e.preventDefault()
+                  dragHandlers.onDragOver('root')
+                }
+              : undefined
+          }
+          onDrop={
+            !isViewer
+              ? (e) => {
+                  e.preventDefault()
+                  dragHandlers.onDrop('root')
+                }
+              : undefined
+          }
           onDragLeave={(e) => {
             if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTargetId(null)
           }}

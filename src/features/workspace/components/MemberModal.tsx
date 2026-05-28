@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+
 import { useAtom } from 'jotai'
+
 import { memberModalOpenAtom } from '../stores/memberModalAtom'
 
 type Role = 'OWNER' | 'EDITOR' | 'VIEWER'

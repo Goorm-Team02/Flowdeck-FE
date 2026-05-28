@@ -1,5 +1,7 @@
-import { useAtom, useSetAtom } from 'jotai'
 import { useNavigate } from 'react-router-dom'
+
+import { useAtom, useSetAtom } from 'jotai'
+
 import { memberModalOpenAtom } from '../stores/memberModalAtom'
 import { isRunningAtom, runTriggerAtom, stopTriggerAtom } from '../stores/terminalAtom'
 

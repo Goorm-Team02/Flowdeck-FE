@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+
 import { useAtom, useAtomValue } from 'jotai'
+
 import { isRunningAtom, runTriggerAtom, stopTriggerAtom } from '../stores/terminalAtom'
 
 type LineType = 'default' | 'success' | 'error' | 'info' | 'link' | 'muted' | 'warning'
@@ -74,24 +76,6 @@ export default function TerminalPanel() {
   const inputRef = useRef<HTMLInputElement>(null)
   const timerIds = useRef<ReturnType<typeof setTimeout>[]>([])
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'auto' })
-  }, [lines, isRunning])
-
-  useEffect(() => {
-    if (runTrigger > prevRun.current) {
-      prevRun.current = runTrigger
-      runDevServer()
-    }
-  }, [runTrigger])
-
-  useEffect(() => {
-    if (stopTrigger > prevStop.current) {
-      prevStop.current = stopTrigger
-      stopDevServer()
-    }
-  }, [stopTrigger])
-
   const append = (text: string, type: LineType = 'default', isPrompt = false) => {
     setLines((prev) => [...prev, line(text, type, isPrompt)])
   }
@@ -137,6 +121,28 @@ export default function TerminalPanel() {
     appendMany([line('^C', 'warning'), line('', 'default'), line('dev server stopped.', 'muted')])
     setTimeout(() => inputRef.current?.focus(), 50)
   }
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'auto' })
+  }, [lines, isRunning])
+
+  useEffect(() => {
+    if (runTrigger > prevRun.current) {
+      prevRun.current = runTrigger
+      runDevServer()
+    }
+    // runDevServer는 의도적으로 deps 제외 — trigger 카운터 패턴
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runTrigger])
+
+  useEffect(() => {
+    if (stopTrigger > prevStop.current) {
+      prevStop.current = stopTrigger
+      stopDevServer()
+    }
+    // stopDevServer는 의도적으로 deps 제외 — trigger 카운터 패턴
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stopTrigger])
 
   const executeCommand = (cmd: string) => {
     const trimmed = cmd.trim()

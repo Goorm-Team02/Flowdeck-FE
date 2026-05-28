@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
+import { useParams } from 'react-router-dom'
 
 import MonacoEditor from '@monaco-editor/react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAtom, useAtomValue, useStore } from 'jotai'
-import { useParams } from 'react-router-dom'
 
 import { useCreateFileVersion } from '../hooks/useCreateFileVersion'
 import { useFile } from '../hooks/useFile'
@@ -100,7 +100,10 @@ export default function EditorArea() {
       {/* Tab bar */}
       <div className="flex items-end bg-bg-secondary border-b border-border shrink-0 h-9">
         <button
-          onClick={() => { setHistoryOpen(false); setTimelineOpen(false) }}
+          onClick={() => {
+            setHistoryOpen(false)
+            setTimelineOpen(false)
+          }}
           className={`flex items-center gap-2 px-4 h-full text-[13px] transition-colors ${
             !historyOpen && !timelineOpen
               ? 'bg-bg-primary border-t-2 border-t-accent text-text-primary'
@@ -114,7 +117,15 @@ export default function EditorArea() {
 
         {historyOpen && (
           <div className="flex items-center gap-2 px-4 h-full text-[13px] bg-bg-primary border-t-2 border-t-accent text-text-primary">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-primary/60">
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              className="text-text-primary/60"
+            >
               <rect x="3" y="3" width="7" height="18" rx="1" />
               <rect x="14" y="3" width="7" height="18" rx="1" />
             </svg>
@@ -130,7 +141,15 @@ export default function EditorArea() {
 
         {timelineOpen && (
           <div className="flex items-center gap-2 px-4 h-full text-[13px] bg-bg-primary border-t-2 border-t-accent text-text-primary">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-primary/60">
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              className="text-text-primary/60"
+            >
               <circle cx="12" cy="12" r="10" />
               <polyline points="12 6 12 12 16 14" />
             </svg>
@@ -244,8 +263,8 @@ export default function EditorArea() {
               <div className="bg-bg-secondary border border-border rounded-xl p-6 w-80 shadow-2xl">
                 <h3 className="text-[15px] font-semibold text-text-primary mb-2">저장 충돌 발생</h3>
                 <p className="text-[13px] text-text-primary/60 mb-5 leading-relaxed">
-                  다른 사용자가 먼저 이 파일을 수정했습니다. 서버 최신 버전을 불러오거나 계속
-                  편집할 수 있습니다.
+                  다른 사용자가 먼저 이 파일을 수정했습니다. 서버 최신 버전을 불러오거나 계속 편집할
+                  수 있습니다.
                 </p>
                 <div className="flex gap-2 justify-end">
                   <button
