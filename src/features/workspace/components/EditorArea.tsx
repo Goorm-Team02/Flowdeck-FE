@@ -100,9 +100,9 @@ export default function EditorArea() {
       {/* Tab bar */}
       <div className="flex items-end bg-bg-secondary border-b border-border shrink-0 h-9">
         <button
-          onClick={() => setHistoryOpen(false)}
+          onClick={() => { setHistoryOpen(false); setTimelineOpen(false) }}
           className={`flex items-center gap-2 px-4 h-full text-[13px] transition-colors ${
-            !historyOpen
+            !historyOpen && !timelineOpen
               ? 'bg-bg-primary border-t-2 border-t-accent text-text-primary'
               : 'text-text-primary/50 hover:text-text-primary/80 hover:bg-bg-primary/50'
           }`}
@@ -113,55 +113,35 @@ export default function EditorArea() {
         </button>
 
         {historyOpen && (
-          <button
-            onClick={() => setHistoryOpen(true)}
-            className="flex items-center gap-2 px-4 h-full text-[13px] transition-colors bg-bg-primary border-t-2 border-t-accent text-text-primary"
-          >
-            <svg
-              width="13"
-              height="13"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              className="text-text-primary/60"
-            >
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="12 6 12 12 16 14" />
+          <div className="flex items-center gap-2 px-4 h-full text-[13px] bg-bg-primary border-t-2 border-t-accent text-text-primary">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-primary/60">
+              <rect x="3" y="3" width="7" height="18" rx="1" />
+              <rect x="14" y="3" width="7" height="18" rx="1" />
             </svg>
             <span>{fileName} — 비교</span>
             <span
-              onClick={(e) => {
-                e.stopPropagation()
-                setHistoryOpen(false)
-              }}
-              className="text-text-primary/30 hover:text-text-primary/70 text-sm leading-none transition-colors"
+              onClick={() => setHistoryOpen(false)}
+              className="text-text-primary/30 hover:text-text-primary/70 text-sm leading-none transition-colors cursor-pointer"
             >
               ×
             </span>
-          </button>
+          </div>
         )}
 
-        {/* 타임라인 버튼 (파일 열린 경우만) */}
-        {file && (
-          <button
-            onClick={() => setTimelineOpen((v) => !v)}
-            title="버전 타임라인"
-            className={`flex items-center gap-1.5 px-3 h-full text-[12px] transition-colors ${
-              timelineOpen
-                ? 'text-accent border-b-2 border-b-accent'
-                : 'text-text-primary/40 hover:text-text-primary/70'
-            }`}
-          >
-            <svg
-              width="13" height="13" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth="2"
-            >
+        {timelineOpen && (
+          <div className="flex items-center gap-2 px-4 h-full text-[13px] bg-bg-primary border-t-2 border-t-accent text-text-primary">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-text-primary/60">
               <circle cx="12" cy="12" r="10" />
               <polyline points="12 6 12 12 16 14" />
             </svg>
-            <span>타임라인</span>
-          </button>
+            <span>{fileName} — 타임라인</span>
+            <span
+              onClick={() => setTimelineOpen(false)}
+              className="text-text-primary/30 hover:text-text-primary/70 text-sm leading-none transition-colors cursor-pointer"
+            >
+              ×
+            </span>
+          </div>
         )}
 
         {/* 버전 저장 버튼 (VIEWER 제외, 파일 열린 경우만) */}

@@ -3,6 +3,7 @@ import { http, HttpResponse } from 'msw'
 import type { FileDetail, FileNode, FileVersion, FileVersionDetail, TimelineVersionCard } from '@/features/workspace/types'
 import type { ApiResponse } from '@/shared/types/api'
 
+const BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
 const PROJECT_ID = '1'
 const FILE_ID = 10
 
@@ -184,13 +185,13 @@ function ok<T>(data: T): HttpResponse<ApiResponse<T>> {
 
 export const handlers = [
   // File tree
-  http.get('/api/projects/:projectId/files', ({ params }) => {
+  http.get(`${BASE}/api/projects/:projectId/files`, ({ params }) => {
     if (params.projectId !== PROJECT_ID) return HttpResponse.json({ success: false, code: 'NOT_FOUND', message: 'Project not found', data: null }, { status: 404 })
     return ok(mockFileTree)
   }),
 
   // File detail (must come before move/rename PATCH)
-  http.get('/api/projects/:projectId/files/:fileId', ({ params }) => {
+  http.get(`${BASE}/api/projects/:projectId/files/:fileId`, ({ params }) => {
     const id = Number(params.fileId)
     const file = mockFiles[id]
     if (!file) return HttpResponse.json({ success: false, code: 'NOT_FOUND', message: 'File not found', data: null }, { status: 404 })
@@ -198,7 +199,7 @@ export const handlers = [
   }),
 
   // Save file
-  http.put('/api/projects/:projectId/files/:fileId', async ({ params, request }) => {
+  http.put(`${BASE}/api/projects/:projectId/files/:fileId`, async ({ params, request }) => {
     const id = Number(params.fileId)
     const file = mockFiles[id]
     if (!file) return HttpResponse.json({ success: false, code: 'NOT_FOUND', message: 'File not found', data: null }, { status: 404 })
@@ -208,19 +209,19 @@ export const handlers = [
   }),
 
   // Version list
-  http.get('/api/projects/:projectId/files/:fileId/versions', ({ params }) => {
+  http.get(`${BASE}/api/projects/:projectId/files/:fileId/versions`, ({ params }) => {
     if (Number(params.fileId) !== FILE_ID) return ok([])
     return ok(mockVersions)
   }),
 
   // Timeline (must come before detail because "timeline" would match :versionId)
-  http.get('/api/projects/:projectId/files/:fileId/versions/timeline', ({ params }) => {
+  http.get(`${BASE}/api/projects/:projectId/files/:fileId/versions/timeline`, ({ params }) => {
     if (Number(params.fileId) !== FILE_ID) return ok([])
     return ok(mockTimeline)
   }),
 
   // Version detail
-  http.get('/api/projects/:projectId/files/:fileId/versions/:versionId', ({ params }) => {
+  http.get(`${BASE}/api/projects/:projectId/files/:fileId/versions/:versionId`, ({ params }) => {
     const versionId = Number(params.versionId)
     const version = mockVersions.find((v) => v.id === versionId)
     if (!version) return HttpResponse.json({ success: false, code: 'NOT_FOUND', message: 'Version not found', data: null }, { status: 404 })
@@ -229,7 +230,7 @@ export const handlers = [
   }),
 
   // Create version
-  http.post('/api/projects/:projectId/files/:fileId/versions', ({ params }) => {
+  http.post(`${BASE}/api/projects/:projectId/files/:fileId/versions`, ({ params }) => {
     const fileId = Number(params.fileId)
     const lastVersion = mockVersions.at(-1)?.version ?? 0
     const newId = (mockVersions.at(-1)?.id ?? 200) + 1
