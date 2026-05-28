@@ -3,9 +3,13 @@ import { useParams } from 'react-router-dom'
 
 import { useChatSocket } from '../hooks/useChatSocket'
 import { useMessages } from '../hooks/useMessages'
+import { usePublishMessage } from '../hooks/usePublishMessage'
 
 // 현재 사용자 ID — 추후 auth 연동 시 실제 값으로 교체
 const useCurrentUserId = () => null as number | null
+
+// VIEWER 권한 여부 — 추후 auth 연동 시 실제 권한으로 교체
+const useIsViewer = () => false
 
 const AVATAR_COLORS = [
   'bg-accent',
@@ -92,9 +96,11 @@ const EMOJIS = [
 export default function ChatPanel() {
   const { projectId = '' } = useParams<{ projectId: string }>()
   const currentUserId = useCurrentUserId()
+  const isViewer = useIsViewer()
 
   const { data: messages = [], isLoading, isError } = useMessages(projectId)
   useChatSocket(projectId)
+  const publishMessage = usePublishMessage(projectId)
 
   const [input, setInput] = useState('')
   const [showEmoji, setShowEmoji] = useState(false)
@@ -120,7 +126,8 @@ export default function ChatPanel() {
 
   const sendMessage = () => {
     const text = input.trim()
-    if (!text && !attachedFile) return
+    if (!text || isViewer) return
+    publishMessage(text)
     setInput('')
     setAttachedFile(null)
   }
@@ -320,8 +327,9 @@ export default function ChatPanel() {
 
               <input
                 ref={inputRef}
-                className="flex-1 bg-transparent text-[13px] text-text-primary placeholder:text-text-primary/25 outline-none"
-                placeholder="팀원에게 메시지 보내기..."
+                disabled={isViewer}
+                className="flex-1 bg-transparent text-[13px] text-text-primary placeholder:text-text-primary/25 outline-none disabled:cursor-not-allowed"
+                placeholder={isViewer ? '읽기 전용 모드' : '팀원에게 메시지 보내기...'}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -330,9 +338,9 @@ export default function ChatPanel() {
               {/* Send */}
               <button
                 onClick={sendMessage}
-                disabled={!input.trim() && !attachedFile}
+                disabled={!input.trim() || isViewer}
                 className={`w-6 h-6 rounded-full flex items-center justify-center text-white transition-opacity shrink-0 ${
-                  input.trim() || attachedFile
+                  input.trim() && !isViewer
                     ? 'bg-accent hover:opacity-80'
                     : 'bg-accent/30 cursor-not-allowed'
                 }`}
