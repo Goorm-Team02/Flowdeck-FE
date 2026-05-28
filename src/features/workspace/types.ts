@@ -51,3 +51,12 @@ export interface FileVersionDiff {
   to: number
   lines: DiffLine[]
 }
+
+export interface TimelineVersionCard {
+  id: number
+  version: number
+  authorName: string
+  savedAt: string
+  content: string
+  diffSummary: { added: number; removed: number } | null
+}

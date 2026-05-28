@@ -1,6 +1,6 @@
 import { apiClient } from '@/shared/api/client'
 import type { ApiResponse } from '@/shared/types/api'
-import type { FileVersion, FileVersionDetail, FileVersionDiff } from '../types'
+import type { FileVersion, FileVersionDetail, FileVersionDiff, TimelineVersionCard } from '../types'
 
 export interface FileVersionInfo {
   fileId: number
@@ -48,6 +48,16 @@ export async function getFileVersionDiff(
   const res = await apiClient.get<ApiResponse<FileVersionDiff>>(
     `/api/projects/${projectId}/files/${fileId}/versions/diff`,
     { params: { from, to } },
+  )
+  return res.data.data
+}
+
+export async function getFileVersionTimeline(
+  projectId: string,
+  fileId: number,
+): Promise<TimelineVersionCard[]> {
+  const res = await apiClient.get<ApiResponse<TimelineVersionCard[]>>(
+    `/api/projects/${projectId}/files/${fileId}/versions/timeline`,
   )
   return res.data.data
 }

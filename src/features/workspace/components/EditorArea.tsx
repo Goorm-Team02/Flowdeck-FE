@@ -15,9 +15,10 @@ import {
   openFileIdAtom,
   saveConflictAtom,
 } from '../stores/openFileAtom'
-import { historyOpenAtom } from '../stores/sidebarAtom'
-import FileHistoryPanel from './FileHistoryPanel'
+import { historyOpenAtom, timelineOpenAtom } from '../stores/sidebarAtom'
+import FileDiffViewer from './FileDiffViewer'
 import TerminalPanel from './TerminalPanel'
+import VersionTimelineSlide from './VersionTimelineSlide'
 
 // VIEWER 권한 여부 — 추후 auth 연동 시 실제 권한으로 교체
 const useIsViewer = () => false
@@ -51,6 +52,7 @@ function getLanguage(filename: string): string {
 export default function EditorArea() {
   const { projectId = '' } = useParams<{ projectId: string }>()
   const [historyOpen, setHistoryOpen] = useAtom(historyOpenAtom)
+  const [timelineOpen, setTimelineOpen] = useAtom(timelineOpenAtom)
   const openFileId = useAtomValue(openFileIdAtom)
   const [isDirty, setIsDirty] = useAtom(isDirtyAtom)
   const [saveConflict, setSaveConflict] = useAtom(saveConflictAtom)
@@ -127,7 +129,7 @@ export default function EditorArea() {
               <circle cx="12" cy="12" r="10" />
               <polyline points="12 6 12 12 16 14" />
             </svg>
-            <span>{fileName} — 버전</span>
+            <span>{fileName} — 비교</span>
             <span
               onClick={(e) => {
                 e.stopPropagation()
@@ -137,6 +139,28 @@ export default function EditorArea() {
             >
               ×
             </span>
+          </button>
+        )}
+
+        {/* 타임라인 버튼 (파일 열린 경우만) */}
+        {file && (
+          <button
+            onClick={() => setTimelineOpen((v) => !v)}
+            title="버전 타임라인"
+            className={`flex items-center gap-1.5 px-3 h-full text-[12px] transition-colors ${
+              timelineOpen
+                ? 'text-accent border-b-2 border-b-accent'
+                : 'text-text-primary/40 hover:text-text-primary/70'
+            }`}
+          >
+            <svg
+              width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+            <span>타임라인</span>
           </button>
         )}
 
@@ -174,8 +198,10 @@ export default function EditorArea() {
       </div>
 
       {/* Main content */}
-      {historyOpen ? (
-        <FileHistoryPanel />
+      {timelineOpen ? (
+        <VersionTimelineSlide />
+      ) : historyOpen ? (
+        <FileDiffViewer />
       ) : (
         <div className="flex-1 overflow-hidden relative">
           {!openFileId && (

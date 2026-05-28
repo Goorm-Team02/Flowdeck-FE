@@ -13,4 +13,6 @@ export const fileVersionKeys = {
     ['projects', projectId, 'files', fileId, 'versions', versionId] as const,
   diff: (projectId: string, fileId: number, from: number, to: number) =>
     ['projects', projectId, 'files', fileId, 'versions', 'diff', from, to] as const,
+  timeline: (projectId: string, fileId: number) =>
+    ['projects', projectId, 'files', fileId, 'versions', 'timeline'] as const,
 }
