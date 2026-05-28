@@ -3,10 +3,15 @@ import { useState } from 'react'
 import { useAtomValue } from 'jotai'
 import { useParams } from 'react-router-dom'
 
+import { isApiError } from '@/shared/api/errors'
 import { useFileVersion } from '../hooks/useFileVersion'
 import { useFileVersionDiff } from '../hooks/useFileVersionDiff'
 import { useFileVersions } from '../hooks/useFileVersions'
+import { useRestoreFileVersion } from '../hooks/useRestoreFileVersion'
 import { openFileIdAtom } from '../stores/openFileAtom'
+
+// VIEWER 권한 여부 — 추후 auth 연동 시 실제 권한으로 교체
+const useIsViewer = () => false
 
 function formatDate(iso: string): string {
   const d = new Date(iso)
@@ -33,10 +38,14 @@ const AVATAR_COLORS = [
 export default function FileHistoryPanel() {
   const { projectId = '' } = useParams<{ projectId: string }>()
   const fileId = useAtomValue(openFileIdAtom)
+  const isViewer = useIsViewer()
 
   const { data: versions = [], isLoading: versionsLoading, isError: versionsError } = useFileVersions(projectId, fileId)
+  const { mutate: restore, isPending: isRestoring } = useRestoreFileVersion(projectId)
 
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null)
+  const [confirmVersionId, setConfirmVersionId] = useState<number | null>(null)
+  const [restoreResult, setRestoreResult] = useState<{ ok: boolean; message: string } | null>(null)
 
   // 목록이 로드되면 최신 버전을 기본 선택
   const effectiveId = selectedVersionId ?? versions.at(-1)?.id ?? null
@@ -61,6 +70,36 @@ export default function FileHistoryPanel() {
   const removedCount = diff?.lines.filter((l) => l.type === 'REMOVED').length ?? 0
 
   const total = versions.length
+  const confirmVersion = versions.find((v) => v.id === confirmVersionId) ?? null
+
+  const handleRestoreConfirm = () => {
+    if (!fileId || !confirmVersionId) return
+    restore(
+      { fileId, versionId: confirmVersionId },
+      {
+        onSuccess: () => {
+          setConfirmVersionId(null)
+          setRestoreResult({ ok: true, message: `v${confirmVersion?.version} 버전으로 복원됐습니다.` })
+          setTimeout(() => setRestoreResult(null), 3000)
+        },
+        onError: (error) => {
+          setConfirmVersionId(null)
+          if (isApiError(error)) {
+            if (error.status === 403) {
+              setRestoreResult({ ok: false, message: '복원 권한이 없습니다.' })
+            } else if (error.status === 409) {
+              setRestoreResult({ ok: false, message: '다른 사용자가 먼저 파일을 수정했습니다. 잠시 후 다시 시도해주세요.' })
+            } else {
+              setRestoreResult({ ok: false, message: error.message })
+            }
+          } else {
+            setRestoreResult({ ok: false, message: '복원 중 오류가 발생했습니다.' })
+          }
+          setTimeout(() => setRestoreResult(null), 4000)
+        },
+      },
+    )
+  }
 
   if (!fileId) {
     return (
@@ -95,7 +134,18 @@ export default function FileHistoryPanel() {
   }
 
   return (
-    <div className="flex-1 overflow-auto px-6 py-4 flex flex-col gap-4 min-w-0">
+    <div className="flex-1 overflow-auto px-6 py-4 flex flex-col gap-4 min-w-0 relative">
+      {/* 토스트 */}
+      {restoreResult && (
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-lg shadow-lg text-[13px] border ${
+          restoreResult.ok
+            ? 'bg-bg-secondary border-green-500/40 text-green-400'
+            : 'bg-bg-secondary border-red-500/40 text-red-400'
+        }`}>
+          {restoreResult.message}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
@@ -182,10 +232,10 @@ export default function FileHistoryPanel() {
       {/* Version cards */}
       <div className="flex gap-3 overflow-x-auto pb-1 shrink-0">
         {versions.map((v, i) => (
-          <button
+          <div
             key={v.id}
             onClick={() => setSelectedVersionId(v.id)}
-            className={`flex-none w-40 p-3 rounded-lg border text-left transition-colors ${
+            className={`flex-none w-40 p-3 rounded-lg border text-left transition-colors cursor-pointer ${
               v.id === effectiveId
                 ? 'border-accent/40 bg-bg-selected'
                 : 'border-border bg-bg-secondary hover:bg-bg-tertiary'
@@ -203,7 +253,15 @@ export default function FileHistoryPanel() {
               v{v.version}
             </p>
             <p className="text-[11px] text-text-primary/35 mt-1">{formatDate(v.savedAt)}</p>
-          </button>
+            {!isViewer && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setConfirmVersionId(v.id) }}
+                className="mt-2 w-full text-[11px] px-2 py-1 rounded border border-border/60 text-text-primary/50 hover:text-text-primary/80 hover:border-border hover:bg-bg-tertiary transition-colors"
+              >
+                이 버전으로 복원
+              </button>
+            )}
+          </div>
         ))}
       </div>
 
@@ -221,6 +279,45 @@ export default function FileHistoryPanel() {
           <span className="text-text-primary/25">diff 계산 중...</span>
         )}
       </div>
+
+      {/* 복원 확인 모달 */}
+      {confirmVersionId && confirmVersion && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-bg-secondary border border-border rounded-xl p-6 w-96 shadow-2xl">
+            <h3 className="text-[15px] font-semibold text-text-primary mb-1">버전 복원</h3>
+            <p className="text-[13px] text-text-primary/60 mb-4 leading-relaxed">
+              <span className="text-text-primary font-medium">v{confirmVersion.version}</span>
+              {' '}({confirmVersion.authorName} · {formatDate(confirmVersion.savedAt)})
+              으로 복원합니다.
+            </p>
+            <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-orange-500/10 border border-orange-500/20 mb-5">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-orange-400 shrink-0 mt-0.5">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              <p className="text-[12px] text-orange-300/90 leading-relaxed">
+                현재 작업 중인 내용이 사라집니다. 복원은 되돌릴 수 없습니다.
+              </p>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setConfirmVersionId(null)}
+                className="px-4 py-1.5 text-[13px] text-text-primary/60 hover:text-text-primary transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleRestoreConfirm}
+                disabled={isRestoring}
+                className="px-4 py-1.5 text-[13px] bg-accent text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isRestoring ? '복원 중...' : '복원'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
