@@ -1,10 +1,11 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import MonacoEditor from '@monaco-editor/react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAtom, useAtomValue, useStore } from 'jotai'
 import { useParams } from 'react-router-dom'
 
+import { useCreateFileVersion } from '../hooks/useCreateFileVersion'
 import { useFile } from '../hooks/useFile'
 import { useSaveFile } from '../hooks/useSaveFile'
 import { fileTreeKeys } from '../lib/queryKeys'
@@ -17,6 +18,9 @@ import {
 import { historyOpenAtom } from '../stores/sidebarAtom'
 import FileHistoryPanel from './FileHistoryPanel'
 import TerminalPanel from './TerminalPanel'
+
+// VIEWER 권한 여부 — 추후 auth 연동 시 실제 권한으로 교체
+const useIsViewer = () => false
 
 function getLanguage(filename: string): string {
   const ext = filename.split('.').pop()?.toLowerCase()
@@ -52,9 +56,23 @@ export default function EditorArea() {
   const [saveConflict, setSaveConflict] = useAtom(saveConflictAtom)
   const jotaiStore = useStore()
   const queryClient = useQueryClient()
+  const isViewer = useIsViewer()
 
   const { data: file, isLoading, isError } = useFile(projectId, openFileId)
   const { mutate: save, isPending: isSaving } = useSaveFile(projectId)
+  const { mutate: createVersion, isPending: isCreatingVersion } = useCreateFileVersion(projectId)
+
+  const [versionSaved, setVersionSaved] = useState(false)
+
+  const handleCreateVersion = () => {
+    if (!openFileId) return
+    createVersion(openFileId, {
+      onSuccess: () => {
+        setVersionSaved(true)
+        setTimeout(() => setVersionSaved(false), 2000)
+      },
+    })
+  }
 
   const contentRef = useRef<string>('')
 
@@ -120,6 +138,38 @@ export default function EditorArea() {
               ×
             </span>
           </button>
+        )}
+
+        {/* 버전 저장 버튼 (VIEWER 제외, 파일 열린 경우만) */}
+        {file && !isViewer && (
+          <div className="ml-auto flex items-center pr-3 h-full">
+            <button
+              onClick={handleCreateVersion}
+              disabled={isCreatingVersion}
+              className="flex items-center gap-1.5 px-2.5 py-1 text-[12px] rounded border border-border/60 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:border-border hover:bg-bg-tertiary text-text-primary/50 hover:text-text-primary/80"
+            >
+              {isCreatingVersion ? (
+                <span>저장 중...</span>
+              ) : versionSaved ? (
+                <span className="text-green-400">버전 저장됨 ✓</span>
+              ) : (
+                <>
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                  <span>버전 저장</span>
+                </>
+              )}
+            </button>
+          </div>
         )}
       </div>
 
