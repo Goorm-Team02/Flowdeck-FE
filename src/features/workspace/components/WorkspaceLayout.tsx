@@ -1,4 +1,6 @@
 import { useAtomValue } from 'jotai'
+
+import { activeSidebarPanelAtom } from '../stores/sidebarAtom'
 import ActivityBar from './ActivityBar'
 import ChatPanel from './ChatPanel'
 import EditorArea from './EditorArea'
@@ -6,7 +8,6 @@ import FileTreePanel from './FileTreePanel'
 import MemberModal from './MemberModal'
 import SearchPanel from './SearchPanel'
 import TopBar from './TopBar'
-import { activeSidebarPanelAtom } from '../stores/sidebarAtom'
 
 export default function WorkspaceLayout() {
   const activeSidebarPanel = useAtomValue(activeSidebarPanelAtom)

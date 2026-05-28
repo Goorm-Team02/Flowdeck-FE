@@ -1,9 +1,10 @@
 import { useState } from 'react'
-
-import { useAtomValue } from 'jotai'
 import { useParams } from 'react-router-dom'
 
+import { useAtomValue } from 'jotai'
+
 import { isApiError } from '@/shared/api/errors'
+
 import { useFileVersion } from '../hooks/useFileVersion'
 import { useFileVersionDiff } from '../hooks/useFileVersionDiff'
 import { useFileVersions } from '../hooks/useFileVersions'
@@ -40,7 +41,11 @@ export default function FileHistoryPanel() {
   const fileId = useAtomValue(openFileIdAtom)
   const isViewer = useIsViewer()
 
-  const { data: versions = [], isLoading: versionsLoading, isError: versionsError } = useFileVersions(projectId, fileId)
+  const {
+    data: versions = [],
+    isLoading: versionsLoading,
+    isError: versionsError,
+  } = useFileVersions(projectId, fileId)
   const { mutate: restore, isPending: isRestoring } = useRestoreFileVersion(projectId)
 
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null)
@@ -58,12 +63,7 @@ export default function FileHistoryPanel() {
     fileId,
     effectiveId,
   )
-  const { data: diff } = useFileVersionDiff(
-    projectId,
-    fileId,
-    prevVersion?.id ?? null,
-    effectiveId,
-  )
+  const { data: diff } = useFileVersionDiff(projectId, fileId, prevVersion?.id ?? null, effectiveId)
 
   const contentLines = versionDetail?.content.split('\n') ?? []
   const addedCount = diff?.lines.filter((l) => l.type === 'ADDED').length ?? 0
@@ -79,7 +79,10 @@ export default function FileHistoryPanel() {
       {
         onSuccess: () => {
           setConfirmVersionId(null)
-          setRestoreResult({ ok: true, message: `v${confirmVersion?.version} 버전으로 복원됐습니다.` })
+          setRestoreResult({
+            ok: true,
+            message: `v${confirmVersion?.version} 버전으로 복원됐습니다.`,
+          })
           setTimeout(() => setRestoreResult(null), 3000)
         },
         onError: (error) => {
@@ -88,7 +91,10 @@ export default function FileHistoryPanel() {
             if (error.status === 403) {
               setRestoreResult({ ok: false, message: '복원 권한이 없습니다.' })
             } else if (error.status === 409) {
-              setRestoreResult({ ok: false, message: '다른 사용자가 먼저 파일을 수정했습니다. 잠시 후 다시 시도해주세요.' })
+              setRestoreResult({
+                ok: false,
+                message: '다른 사용자가 먼저 파일을 수정했습니다. 잠시 후 다시 시도해주세요.',
+              })
             } else {
               setRestoreResult({ ok: false, message: error.message })
             }
@@ -137,11 +143,13 @@ export default function FileHistoryPanel() {
     <div className="flex-1 overflow-auto px-6 py-4 flex flex-col gap-4 min-w-0 relative">
       {/* 토스트 */}
       {restoreResult && (
-        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-lg shadow-lg text-[13px] border ${
-          restoreResult.ok
-            ? 'bg-bg-secondary border-green-500/40 text-green-400'
-            : 'bg-bg-secondary border-red-500/40 text-red-400'
-        }`}>
+        <div
+          className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-lg shadow-lg text-[13px] border ${
+            restoreResult.ok
+              ? 'bg-bg-secondary border-green-500/40 text-green-400'
+              : 'bg-bg-secondary border-red-500/40 text-red-400'
+          }`}
+        >
           {restoreResult.message}
         </div>
       )}
@@ -255,7 +263,10 @@ export default function FileHistoryPanel() {
             <p className="text-[11px] text-text-primary/35 mt-1">{formatDate(v.savedAt)}</p>
             {!isViewer && (
               <button
-                onClick={(e) => { e.stopPropagation(); setConfirmVersionId(v.id) }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setConfirmVersionId(v.id)
+                }}
                 className="mt-2 w-full text-[11px] px-2 py-1 rounded border border-border/60 text-text-primary/50 hover:text-text-primary/80 hover:border-border hover:bg-bg-tertiary transition-colors"
               >
                 이 버전으로 복원
@@ -271,8 +282,7 @@ export default function FileHistoryPanel() {
           <span>초기 버전</span>
         ) : diff ? (
           <>
-            이전 버전 대비{' '}
-            <span className="text-green-400">+{addedCount}줄</span>{' '}
+            이전 버전 대비 <span className="text-green-400">+{addedCount}줄</span>{' '}
             <span className="text-red-400">-{removedCount}줄</span>
           </>
         ) : (
@@ -286,12 +296,19 @@ export default function FileHistoryPanel() {
           <div className="bg-bg-secondary border border-border rounded-xl p-6 w-96 shadow-2xl">
             <h3 className="text-[15px] font-semibold text-text-primary mb-1">버전 복원</h3>
             <p className="text-[13px] text-text-primary/60 mb-4 leading-relaxed">
-              <span className="text-text-primary font-medium">v{confirmVersion.version}</span>
-              {' '}({confirmVersion.authorName} · {formatDate(confirmVersion.savedAt)})
-              으로 복원합니다.
+              <span className="text-text-primary font-medium">v{confirmVersion.version}</span> (
+              {confirmVersion.authorName} · {formatDate(confirmVersion.savedAt)}) 으로 복원합니다.
             </p>
             <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-orange-500/10 border border-orange-500/20 mb-5">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-orange-400 shrink-0 mt-0.5">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="text-orange-400 shrink-0 mt-0.5"
+              >
                 <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                 <line x1="12" y1="9" x2="12" y2="13" />
                 <line x1="12" y1="17" x2="12.01" y2="17" />

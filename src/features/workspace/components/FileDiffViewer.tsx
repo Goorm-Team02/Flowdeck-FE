@@ -1,10 +1,11 @@
 import { useState } from 'react'
+import { useParams } from 'react-router-dom'
 
 import { DiffEditor } from '@monaco-editor/react'
 import { useAtomValue } from 'jotai'
-import { useParams } from 'react-router-dom'
 
 import { isApiError } from '@/shared/api/errors'
+
 import { useFile } from '../hooks/useFile'
 import { useFileVersion } from '../hooks/useFileVersion'
 import { useFileVersions } from '../hooks/useFileVersions'
@@ -17,15 +18,26 @@ const useIsViewer = () => false
 function getLanguage(filename: string): string {
   const ext = filename.split('.').pop()?.toLowerCase()
   switch (ext) {
-    case 'ts': case 'tsx': return 'typescript'
-    case 'js': case 'jsx': return 'javascript'
-    case 'json': return 'json'
-    case 'md': return 'markdown'
-    case 'html': return 'html'
-    case 'css': return 'css'
-    case 'py': return 'python'
-    case 'java': return 'java'
-    default: return 'plaintext'
+    case 'ts':
+    case 'tsx':
+      return 'typescript'
+    case 'js':
+    case 'jsx':
+      return 'javascript'
+    case 'json':
+      return 'json'
+    case 'md':
+      return 'markdown'
+    case 'html':
+      return 'html'
+    case 'css':
+      return 'css'
+    case 'py':
+      return 'python'
+    case 'java':
+      return 'java'
+    default:
+      return 'plaintext'
   }
 }
 
@@ -64,7 +76,10 @@ export default function FileDiffViewer() {
       {
         onSuccess: () => {
           setConfirmVersionId(null)
-          setRestoreResult({ ok: true, message: `v${confirmVersion?.version} 버전으로 복원됐습니다.` })
+          setRestoreResult({
+            ok: true,
+            message: `v${confirmVersion?.version} 버전으로 복원됐습니다.`,
+          })
           setTimeout(() => setRestoreResult(null), 3000)
         },
         onError: (error) => {
@@ -73,7 +88,10 @@ export default function FileDiffViewer() {
             if (error.status === 403) {
               setRestoreResult({ ok: false, message: '복원 권한이 없습니다.' })
             } else if (error.status === 409) {
-              setRestoreResult({ ok: false, message: '다른 사용자가 먼저 파일을 수정했습니다. 잠시 후 다시 시도해주세요.' })
+              setRestoreResult({
+                ok: false,
+                message: '다른 사용자가 먼저 파일을 수정했습니다. 잠시 후 다시 시도해주세요.',
+              })
             } else {
               setRestoreResult({ ok: false, message: error.message })
             }
@@ -132,11 +150,13 @@ export default function FileDiffViewer() {
     <div className="flex-1 flex flex-col overflow-hidden bg-bg-primary">
       {/* 토스트 */}
       {restoreResult && (
-        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-lg shadow-lg text-[13px] border ${
-          restoreResult.ok
-            ? 'bg-bg-secondary border-green-500/40 text-green-400'
-            : 'bg-bg-secondary border-red-500/40 text-red-400'
-        }`}>
+        <div
+          className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-lg shadow-lg text-[13px] border ${
+            restoreResult.ok
+              ? 'bg-bg-secondary border-green-500/40 text-green-400'
+              : 'bg-bg-secondary border-red-500/40 text-red-400'
+          }`}
+        >
           {restoreResult.message}
         </div>
       )}
@@ -150,7 +170,14 @@ export default function FileDiffViewer() {
           title="더 오래된 버전과 비교"
           className="w-6 h-6 rounded border border-border flex items-center justify-center text-text-primary/50 hover:text-text-primary/80 hover:border-text-primary/40 transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
         >
-          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <svg
+            width="9"
+            height="9"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+          >
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
@@ -159,7 +186,14 @@ export default function FileDiffViewer() {
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <span className="text-[12px] text-text-primary/40">비교:</span>
           <div className="flex items-center gap-1.5 px-2.5 py-1 bg-bg-tertiary border border-border/60 rounded text-[12px]">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="2">
+            <svg
+              width="11"
+              height="11"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="var(--color-accent)"
+              strokeWidth="2"
+            >
               <circle cx="12" cy="12" r="10" />
               <polyline points="12 6 12 12 16 14" />
             </svg>
@@ -170,7 +204,15 @@ export default function FileDiffViewer() {
               </span>
             )}
           </div>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-primary)" strokeWidth="2" className="opacity-30 shrink-0">
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="var(--color-text-primary)"
+            strokeWidth="2"
+            className="opacity-30 shrink-0"
+          >
             <line x1="5" y1="12" x2="19" y2="12" />
             <polyline points="12 5 19 12 12 19" />
           </svg>
@@ -202,7 +244,14 @@ export default function FileDiffViewer() {
           title="더 최근 버전과 비교"
           className="w-6 h-6 rounded border border-border flex items-center justify-center text-text-primary/50 hover:text-text-primary/80 hover:border-text-primary/40 transition-colors disabled:opacity-25 disabled:cursor-not-allowed"
         >
-          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <svg
+            width="9"
+            height="9"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+          >
             <polyline points="9 18 15 12 9 6" />
           </svg>
         </button>
@@ -213,9 +262,7 @@ export default function FileDiffViewer() {
         <div className="flex-1 px-4 py-1.5 text-[11px] text-text-primary/40 border-r border-border">
           v{selectedVersion?.version} — 이전
         </div>
-        <div className="flex-1 px-4 py-1.5 text-[11px] text-accent/70">
-          현재 — {file?.name}
-        </div>
+        <div className="flex-1 px-4 py-1.5 text-[11px] text-accent/70">현재 — {file?.name}</div>
       </div>
 
       {/* Monaco DiffEditor */}
@@ -252,12 +299,19 @@ export default function FileDiffViewer() {
           <div className="bg-bg-secondary border border-border rounded-xl p-6 w-96 shadow-2xl">
             <h3 className="text-[15px] font-semibold text-text-primary mb-1">버전 복원</h3>
             <p className="text-[13px] text-text-primary/60 mb-4 leading-relaxed">
-              <span className="text-text-primary font-medium">v{confirmVersion.version}</span>
-              {' '}({confirmVersion.authorName} · {formatDate(confirmVersion.savedAt)})
-              으로 복원합니다.
+              <span className="text-text-primary font-medium">v{confirmVersion.version}</span> (
+              {confirmVersion.authorName} · {formatDate(confirmVersion.savedAt)}) 으로 복원합니다.
             </p>
             <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-orange-500/10 border border-orange-500/20 mb-5">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-orange-400 shrink-0 mt-0.5">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="text-orange-400 shrink-0 mt-0.5"
+              >
                 <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                 <line x1="12" y1="9" x2="12" y2="13" />
                 <line x1="12" y1="17" x2="12.01" y2="17" />

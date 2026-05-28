@@ -48,12 +48,54 @@ const INITIAL_MESSAGES: ChatMessage[] = [
 ]
 
 const EMOJIS = [
-  '😀', '😄', '😊', '😍', '🥰', '😂', '😭', '🥲',
-  '😅', '😬', '😎', '🤔', '🙄', '😴', '🤗', '😤',
-  '🥳', '😇', '🤩', '😏', '🫠', '🙃', '😤', '🤯',
-  '👍', '👎', '👏', '🙌', '🤝', '✌️', '👌', '💪',
-  '❤️', '🔥', '💯', '✅', '❌', '⚡', '🎉', '🚀',
-  '⭐', '💡', '🎯', '💎', '🧡', '💚', '💙', '🖤',
+  '😀',
+  '😄',
+  '😊',
+  '😍',
+  '🥰',
+  '😂',
+  '😭',
+  '🥲',
+  '😅',
+  '😬',
+  '😎',
+  '🤔',
+  '🙄',
+  '😴',
+  '🤗',
+  '😤',
+  '🥳',
+  '😇',
+  '🤩',
+  '😏',
+  '🫠',
+  '🙃',
+  '😤',
+  '🤯',
+  '👍',
+  '👎',
+  '👏',
+  '🙌',
+  '🤝',
+  '✌️',
+  '👌',
+  '💪',
+  '❤️',
+  '🔥',
+  '💯',
+  '✅',
+  '❌',
+  '⚡',
+  '🎉',
+  '🚀',
+  '⭐',
+  '💡',
+  '🎯',
+  '💎',
+  '🧡',
+  '💚',
+  '💙',
+  '🖤',
 ]
 
 const ONLINE_COUNT = 4
@@ -162,9 +204,7 @@ export default function ChatPanel() {
             <div className="flex-1 min-w-0">
               <div className="flex items-baseline gap-1.5 mb-0.5 flex-wrap">
                 <span className="text-[13px] font-semibold text-text-primary">{msg.user}</span>
-                {msg.isMe && (
-                  <span className="text-[11px] text-text-primary/35">(나)</span>
-                )}
+                {msg.isMe && <span className="text-[11px] text-text-primary/35">(나)</span>}
                 <span className="text-[11px] text-text-primary/35">{msg.time}</span>
               </div>
               {msg.text && (
@@ -238,7 +278,9 @@ export default function ChatPanel() {
                 <span className="text-[12px] text-text-primary/70 flex-1 truncate">
                   {attachedFile.name}
                 </span>
-                <span className="text-[11px] text-text-primary/35 shrink-0">{attachedFile.size}</span>
+                <span className="text-[11px] text-text-primary/35 shrink-0">
+                  {attachedFile.size}
+                </span>
                 <button
                   onClick={() => setAttachedFile(null)}
                   className="text-text-primary/35 hover:text-text-primary/70 transition-colors leading-none ml-1"
@@ -330,12 +372,7 @@ export default function ChatPanel() {
       </div>
 
       {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        className="hidden"
-        onChange={handleFileChange}
-      />
+      <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
     </div>
   )
 }

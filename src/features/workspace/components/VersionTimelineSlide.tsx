@@ -1,9 +1,10 @@
 import { useState } from 'react'
-
-import { useAtomValue, useSetAtom } from 'jotai'
 import { useParams } from 'react-router-dom'
 
+import { useAtomValue, useSetAtom } from 'jotai'
+
 import { isApiError } from '@/shared/api/errors'
+
 import { useFileVersionTimeline } from '../hooks/useFileVersionTimeline'
 import { useRestoreFileVersion } from '../hooks/useRestoreFileVersion'
 import { openFileIdAtom } from '../stores/openFileAtom'
@@ -22,8 +23,12 @@ function formatDate(iso: string): string {
 }
 
 const AVATAR_COLORS = [
-  'bg-accent', 'bg-purple-500', 'bg-teal-500',
-  'bg-orange-500', 'bg-rose-500', 'bg-indigo-500',
+  'bg-accent',
+  'bg-purple-500',
+  'bg-teal-500',
+  'bg-orange-500',
+  'bg-rose-500',
+  'bg-indigo-500',
 ]
 
 export default function VersionTimelineSlide() {
@@ -60,7 +65,10 @@ export default function VersionTimelineSlide() {
             if (error.status === 403) {
               setRestoreResult({ ok: false, message: '복원 권한이 없습니다.' })
             } else if (error.status === 409) {
-              setRestoreResult({ ok: false, message: '다른 사용자가 먼저 파일을 수정했습니다. 잠시 후 다시 시도해주세요.' })
+              setRestoreResult({
+                ok: false,
+                message: '다른 사용자가 먼저 파일을 수정했습니다. 잠시 후 다시 시도해주세요.',
+              })
             } else {
               setRestoreResult({ ok: false, message: error.message })
             }
@@ -82,11 +90,13 @@ export default function VersionTimelineSlide() {
     <div className="flex-1 flex flex-col bg-bg-primary overflow-hidden">
       {/* 토스트 */}
       {restoreResult && (
-        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-lg shadow-lg text-[13px] border ${
-          restoreResult.ok
-            ? 'bg-bg-secondary border-green-500/40 text-green-400'
-            : 'bg-bg-secondary border-red-500/40 text-red-400'
-        }`}>
+        <div
+          className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-lg shadow-lg text-[13px] border ${
+            restoreResult.ok
+              ? 'bg-bg-secondary border-green-500/40 text-green-400'
+              : 'bg-bg-secondary border-red-500/40 text-red-400'
+          }`}
+        >
           {restoreResult.message}
         </div>
       )}
@@ -94,7 +104,14 @@ export default function VersionTimelineSlide() {
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-border shrink-0 bg-bg-secondary">
         <div className="flex items-center gap-2">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" strokeWidth="2">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="var(--color-accent)"
+            strokeWidth="2"
+          >
             <circle cx="12" cy="12" r="10" />
             <polyline points="12 6 12 12 16 14" />
           </svg>
@@ -139,7 +156,14 @@ export default function VersionTimelineSlide() {
               disabled={effectiveIdx === 0}
               className="w-7 h-7 rounded-full border border-border flex items-center justify-center text-text-primary/50 hover:text-text-primary/90 hover:border-text-primary/40 transition-colors disabled:opacity-25 disabled:cursor-not-allowed shrink-0"
             >
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+              >
                 <polyline points="15 18 9 12 15 6" />
               </svg>
             </button>
@@ -163,14 +187,17 @@ export default function VersionTimelineSlide() {
                       >
                         {card.authorName.slice(0, 2)}
                       </div>
-                      <span className="text-[11px] text-text-primary/50 truncate">{card.authorName}</span>
+                      <span className="text-[11px] text-text-primary/50 truncate">
+                        {card.authorName}
+                      </span>
                     </div>
                     <p className="text-[13px] font-semibold text-text-primary">v{card.version}</p>
-                    <p className="text-[10px] text-text-primary/35 mt-0.5">{formatDate(card.savedAt)}</p>
+                    <p className="text-[10px] text-text-primary/35 mt-0.5">
+                      {formatDate(card.savedAt)}
+                    </p>
                     {card.diffSummary && (
                       <p className="text-[10px] mt-1">
-                        <span className="text-green-400">+{card.diffSummary.added}</span>
-                        {' '}
+                        <span className="text-green-400">+{card.diffSummary.added}</span>{' '}
                         <span className="text-red-400">-{card.diffSummary.removed}</span>
                       </p>
                     )}
@@ -184,7 +211,14 @@ export default function VersionTimelineSlide() {
               disabled={effectiveIdx === cards.length - 1}
               className="w-7 h-7 rounded-full border border-border flex items-center justify-center text-text-primary/50 hover:text-text-primary/90 hover:border-text-primary/40 transition-colors disabled:opacity-25 disabled:cursor-not-allowed shrink-0"
             >
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+              >
                 <polyline points="9 18 15 12 9 6" />
               </svg>
             </button>
@@ -204,8 +238,7 @@ export default function VersionTimelineSlide() {
                 <div className="flex items-center gap-3">
                   {selected.diffSummary ? (
                     <span className="text-[12px]">
-                      <span className="text-green-400">+{selected.diffSummary.added}줄</span>
-                      {' '}
+                      <span className="text-green-400">+{selected.diffSummary.added}줄</span>{' '}
                       <span className="text-red-400">-{selected.diffSummary.removed}줄</span>
                     </span>
                   ) : (
@@ -244,12 +277,19 @@ export default function VersionTimelineSlide() {
           <div className="bg-bg-secondary border border-border rounded-xl p-6 w-96 shadow-2xl">
             <h3 className="text-[15px] font-semibold text-text-primary mb-1">버전 복원</h3>
             <p className="text-[13px] text-text-primary/60 mb-4 leading-relaxed">
-              <span className="text-text-primary font-medium">v{confirmCard.version}</span>
-              {' '}({confirmCard.authorName} · {formatDate(confirmCard.savedAt)})
-              으로 복원합니다.
+              <span className="text-text-primary font-medium">v{confirmCard.version}</span> (
+              {confirmCard.authorName} · {formatDate(confirmCard.savedAt)}) 으로 복원합니다.
             </p>
             <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-orange-500/10 border border-orange-500/20 mb-5">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-orange-400 shrink-0 mt-0.5">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="text-orange-400 shrink-0 mt-0.5"
+              >
                 <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                 <line x1="12" y1="9" x2="12" y2="13" />
                 <line x1="12" y1="17" x2="12.01" y2="17" />
