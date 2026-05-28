@@ -18,4 +18,6 @@ export const fileVersionKeys = {
 
 export const chatKeys = {
   messages: (projectId: string) => ['projects', projectId, 'messages'] as const,
+  search: (projectId: string, keyword: string) =>
+    ['projects', projectId, 'messages', 'search', keyword] as const,
 }

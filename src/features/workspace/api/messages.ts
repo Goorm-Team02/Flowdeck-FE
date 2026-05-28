@@ -16,3 +16,14 @@ export async function getMessages(projectId: string): Promise<ProjectMessage[]> 
 export async function deleteMessage(projectId: string, messageId: number): Promise<void> {
   await apiClient.delete(`/api/projects/${projectId}/messages/${messageId}`)
 }
+
+export async function searchMessages(
+  projectId: string,
+  keyword: string,
+): Promise<ProjectMessage[]> {
+  const res = await apiClient.get<ApiResponse<MessageListResponse>>(
+    `/api/projects/${projectId}/messages/search`,
+    { params: { keyword } },
+  )
+  return res.data.data.messages
+}

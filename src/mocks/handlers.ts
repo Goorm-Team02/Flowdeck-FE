@@ -298,6 +298,16 @@ export const handlers = [
     return ok({ messages: mockMessages })
   }),
 
+  // Search messages (must come before delete to avoid :messageId matching "search")
+  http.get(`${BASE}/api/projects/:projectId/messages/search`, ({ request }) => {
+    const url = new URL(request.url)
+    const keyword = url.searchParams.get('keyword') ?? ''
+    const results = keyword
+      ? mockMessages.filter((m) => m.content.toLowerCase().includes(keyword.toLowerCase()))
+      : []
+    return ok({ messages: results })
+  }),
+
   // Delete message
   http.delete(`${BASE}/api/projects/:projectId/messages/:messageId`, ({ params }) => {
     const messageId = Number(params.messageId)
