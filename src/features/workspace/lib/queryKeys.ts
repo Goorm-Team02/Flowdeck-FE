@@ -16,6 +16,10 @@ export const fileVersionKeys = {
     ['projects', projectId, 'files', fileId, 'versions', 'timeline'] as const,
 }
 
+export const memberKeys = {
+  list: (projectId: string) => ['projects', projectId, 'members'] as const,
+}
+
 export const chatKeys = {
   messages: (projectId: string) => ['projects', projectId, 'messages'] as const,
   search: (projectId: string, keyword: string) =>
