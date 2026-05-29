@@ -1,3 +1,18 @@
+// ─── Member ───────────────────────────────────────────────────────────────────
+
+export type MemberRole = 'OWNER' | 'EDITOR' | 'VIEWER'
+
+export interface Member {
+  memberId: number
+  userId: string
+  email: string
+  name: string
+  role: MemberRole
+  joinedAt: string
+}
+
+// ─── File ─────────────────────────────────────────────────────────────────────
+
 export type FileNodeType = 'FILE' | 'FOLDER'
 
 export interface FileNode {

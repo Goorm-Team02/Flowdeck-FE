@@ -1,101 +1,66 @@
 import { useEffect, useState } from 'react'
+import { useParams } from 'react-router-dom'
 
 import { useAtom } from 'jotai'
 
+import { useCurrentMemberRole } from '../hooks/useCurrentMemberRole'
+import { useMembers } from '../hooks/useMembers'
 import { memberModalOpenAtom } from '../stores/memberModalAtom'
+import type { MemberRole } from '../types'
 
-type Role = 'OWNER' | 'EDITOR' | 'VIEWER'
-
-interface Member {
-  id: string
-  name: string
-  email: string
-  role: Role
-  color: string
-  initials: string
-}
-
-const INITIAL_MEMBERS: Member[] = [
-  {
-    id: '1',
-    name: 'Jiwoo Seo',
-    email: 'jiwoo@codenest.io',
-    role: 'OWNER',
-    color: 'bg-teal-500',
-    initials: 'Ji',
-  },
-  {
-    id: '2',
-    name: 'Minseo Kim',
-    email: 'minseo@codenest.io',
-    role: 'EDITOR',
-    color: 'bg-pink-500',
-    initials: 'Mi',
-  },
-  {
-    id: '3',
-    name: 'Hyun Lee',
-    email: 'hyun@codenest.io',
-    role: 'EDITOR',
-    color: 'bg-green-500',
-    initials: 'Hy',
-  },
-  {
-    id: '4',
-    name: 'Suji Park',
-    email: 'suji@codenest.io',
-    role: 'VIEWER',
-    color: 'bg-orange-500',
-    initials: 'Su',
-  },
-]
+// 현재 사용자 ID — 추후 auth 연동 시 실제 값으로 교체
+const useCurrentUserId = () => null as string | null
 
 const AVATAR_COLORS = [
+  'bg-teal-500',
   'bg-purple-500',
-  'bg-cyan-500',
   'bg-rose-500',
   'bg-amber-500',
   'bg-indigo-500',
+  'bg-cyan-500',
+  'bg-green-500',
+  'bg-orange-500',
 ]
 
-function RoleSelect({
-  value,
-  onChange,
-}: {
-  value: 'EDITOR' | 'VIEWER'
-  onChange: (v: 'EDITOR' | 'VIEWER') => void
-}) {
+function avatarColor(memberId: number): string {
+  return AVATAR_COLORS[memberId % AVATAR_COLORS.length]
+}
+
+const ROLE_BADGE: Record<MemberRole, { label: string; className: string }> = {
+  OWNER: {
+    label: 'Owner',
+    className: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
+  },
+  EDITOR: {
+    label: 'Editor',
+    className: 'bg-accent/15 text-accent border-accent/30',
+  },
+  VIEWER: {
+    label: 'Viewer',
+    className: 'bg-text-primary/10 text-text-primary/50 border-text-primary/20',
+  },
+}
+
+function RoleBadge({ role }: { role: MemberRole }) {
+  const { label, className } = ROLE_BADGE[role]
   return (
-    <div className="relative">
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value as 'EDITOR' | 'VIEWER')}
-        className="appearance-none bg-bg-tertiary border border-border rounded-lg pl-3 pr-7 py-1.5 text-[12px] text-text-primary/80 outline-none cursor-pointer hover:border-text-primary/30 transition-colors"
-      >
-        <option value="EDITOR">EDITOR</option>
-        <option value="VIEWER">VIEWER</option>
-      </select>
-      <svg
-        className="absolute right-2 top-1/2 -translate-y-1/2 text-text-primary/40 pointer-events-none"
-        width="11"
-        height="11"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.5"
-      >
-        <polyline points="6 9 12 15 18 9" />
-      </svg>
-    </div>
+    <span className={`shrink-0 text-[11px] px-1.5 py-0.5 rounded border font-medium ${className}`}>
+      {label}
+    </span>
   )
 }
 
 export default function MemberModal() {
+  const { projectId = '' } = useParams<{ projectId: string }>()
   const [isOpen, setIsOpen] = useAtom(memberModalOpenAtom)
-  const [members, setMembers] = useState<Member[]>(INITIAL_MEMBERS)
+  const currentUserId = useCurrentUserId()
+  const currentRole = useCurrentMemberRole(projectId)
+  const isOwner = currentRole === 'OWNER'
+
+  const { data: members = [], isLoading, isError } = useMembers(projectId)
+
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<'EDITOR' | 'VIEWER'>('EDITOR')
-  const [colorIdx, setColorIdx] = useState(0)
 
   useEffect(() => {
     if (!isOpen) return
@@ -107,35 +72,6 @@ export default function MemberModal() {
   }, [isOpen, setIsOpen])
 
   if (!isOpen) return null
-
-  const handleInvite = () => {
-    const email = inviteEmail.trim()
-    if (!email || !email.includes('@')) return
-    const rawName = email.split('@')[0]
-    const name = rawName.charAt(0).toUpperCase() + rawName.slice(1)
-    const initials = rawName.slice(0, 2)
-    setMembers((prev) => [
-      ...prev,
-      {
-        id: Date.now().toString(),
-        name,
-        email,
-        role: inviteRole,
-        color: AVATAR_COLORS[colorIdx % AVATAR_COLORS.length],
-        initials,
-      },
-    ])
-    setColorIdx((i) => i + 1)
-    setInviteEmail('')
-  }
-
-  const updateRole = (id: string, role: 'EDITOR' | 'VIEWER') => {
-    setMembers((prev) => prev.map((m) => (m.id === id ? { ...m, role } : m)))
-  }
-
-  const removeMember = (id: string) => {
-    setMembers((prev) => prev.filter((m) => m.id !== id))
-  }
 
   return (
     <div
@@ -164,114 +100,109 @@ export default function MemberModal() {
           </button>
         </div>
 
-        {/* Invite */}
-        <div className="px-6 pb-5">
-          <div className="flex gap-2">
-            <input
-              className="flex-1 bg-bg-tertiary border border-border rounded-lg px-3 py-2 text-[13px] text-text-primary placeholder:text-text-primary/30 outline-none focus:border-accent/60 transition-colors min-w-0"
-              placeholder="이메일로 멤버 초대"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleInvite()
-              }}
-            />
-            <div className="relative shrink-0">
-              <select
-                value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value as 'EDITOR' | 'VIEWER')}
-                className="appearance-none bg-bg-tertiary border border-border rounded-lg pl-3 pr-7 py-2 text-[13px] text-text-primary/80 outline-none cursor-pointer hover:border-text-primary/30 transition-colors"
+        {/* Invite (OWNER only) */}
+        {isOwner && (
+          <div className="px-6 pb-5">
+            <div className="flex gap-2">
+              <input
+                className="flex-1 bg-bg-tertiary border border-border rounded-lg px-3 py-2 text-[13px] text-text-primary placeholder:text-text-primary/30 outline-none focus:border-accent/60 transition-colors min-w-0"
+                placeholder="이메일로 멤버 초대"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') setInviteEmail('')
+                }}
+              />
+              <div className="relative shrink-0">
+                <select
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value as 'EDITOR' | 'VIEWER')}
+                  className="appearance-none bg-bg-tertiary border border-border rounded-lg pl-3 pr-7 py-2 text-[13px] text-text-primary/80 outline-none cursor-pointer hover:border-text-primary/30 transition-colors"
+                >
+                  <option value="EDITOR">EDITOR</option>
+                  <option value="VIEWER">VIEWER</option>
+                </select>
+                <svg
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-text-primary/40 pointer-events-none"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </div>
+              <button
+                onClick={() => setInviteEmail('')}
+                className="shrink-0 px-4 py-2 bg-accent text-white text-[13px] font-medium rounded-lg hover:opacity-90 transition-opacity"
               >
-                <option value="EDITOR">EDITOR</option>
-                <option value="VIEWER">VIEWER</option>
-              </select>
-              <svg
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-text-primary/40 pointer-events-none"
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-              >
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
+                초대
+              </button>
             </div>
-            <button
-              onClick={handleInvite}
-              className="shrink-0 px-4 py-2 bg-accent text-white text-[13px] font-medium rounded-lg hover:opacity-90 transition-opacity"
-            >
-              초대
-            </button>
           </div>
-        </div>
+        )}
 
         {/* Member list */}
         <div className="px-6 pb-4">
-          <p className="text-[12px] text-text-primary/45 mb-2.5">현재 멤버 ({members.length})</p>
-          <div className="border border-border rounded-lg overflow-hidden max-h-[260px] overflow-y-auto">
-            {members.map((member, index) => (
-              <div
-                key={member.id}
-                className={`flex items-center gap-3 px-4 py-3 ${
-                  index < members.length - 1 ? 'border-b border-border' : ''
-                }`}
-              >
-                {/* Avatar */}
+          <p className="text-[12px] text-text-primary/45 mb-2.5">
+            현재 멤버 ({isLoading ? '…' : members.length})
+          </p>
+
+          {isLoading && (
+            <div className="flex items-center justify-center py-8 border border-border rounded-lg">
+              <p className="text-[13px] text-text-primary/30">불러오는 중...</p>
+            </div>
+          )}
+
+          {isError && !isLoading && (
+            <div className="flex items-center justify-center py-8 border border-border rounded-lg">
+              <p className="text-[13px] text-red-400/70">멤버 목록을 불러올 수 없습니다.</p>
+            </div>
+          )}
+
+          {!isLoading && !isError && members.length === 0 && (
+            <div className="flex items-center justify-center py-8 border border-border rounded-lg">
+              <p className="text-[13px] text-text-primary/30">멤버가 없습니다.</p>
+            </div>
+          )}
+
+          {!isLoading && !isError && members.length > 0 && (
+            <div className="border border-border rounded-lg overflow-hidden max-h-[260px] overflow-y-auto">
+              {members.map((member, index) => (
                 <div
-                  className={`w-9 h-9 rounded-full ${member.color} flex items-center justify-center text-white text-[12px] font-bold shrink-0`}
+                  key={member.memberId}
+                  className={`flex items-center gap-3 px-4 py-3 ${
+                    index < members.length - 1 ? 'border-b border-border' : ''
+                  }`}
                 >
-                  {member.initials}
-                </div>
+                  {/* Avatar */}
+                  <div
+                    className={`w-9 h-9 rounded-full ${avatarColor(member.memberId)} flex items-center justify-center text-white text-[12px] font-bold shrink-0`}
+                  >
+                    {member.name.slice(0, 2)}
+                  </div>
 
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[13px] font-medium text-text-primary truncate">
-                      {member.name}
-                    </span>
-                    {member.role === 'OWNER' && (
-                      <span className="shrink-0 text-[11px] px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-400 border border-yellow-500/30 font-medium">
-                        Owner
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[13px] font-medium text-text-primary truncate">
+                        {member.name}
                       </span>
-                    )}
+                      {currentUserId === member.userId && (
+                        <span className="shrink-0 text-[11px] text-text-primary/35">(나)</span>
+                      )}
+                    </div>
+                    <p className="text-[12px] text-text-primary/40 truncate">{member.email}</p>
                   </div>
-                  <p className="text-[12px] text-text-primary/40 truncate">{member.email}</p>
-                </div>
 
-                {/* Controls */}
-                {member.role === 'OWNER' ? (
-                  <span className="text-[12px] text-text-primary/25 shrink-0">변경 불가</span>
-                ) : (
-                  <div className="flex items-center gap-2 shrink-0">
-                    <RoleSelect
-                      value={member.role as 'EDITOR' | 'VIEWER'}
-                      onChange={(role) => updateRole(member.id, role)}
-                    />
-                    <button
-                      onClick={() => removeMember(member.id)}
-                      title="멤버 제거"
-                      className="p-1 text-text-primary/30 hover:text-red-400 transition-colors"
-                    >
-                      <svg
-                        width="15"
-                        height="15"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                      >
-                        <polyline points="3 6 5 6 21 6" />
-                        <path d="M19 6l-1 14H6L5 6" />
-                        <path d="M10 11v6M14 11v6" />
-                        <path d="M9 6V4h6v2" />
-                      </svg>
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+                  {/* Role badge */}
+                  <RoleBadge role={member.role} />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Footer */}

@@ -5,6 +5,7 @@ import type {
   FileNode,
   FileVersion,
   FileVersionDetail,
+  Member,
   TimelineVersionCard,
 } from '@/features/workspace/types'
 import type { ProjectMessage } from '@/shared/socket/types'
@@ -185,6 +186,33 @@ const mockTimeline: TimelineVersionCard[] = [
   },
 ]
 
+const mockMembers: Member[] = [
+  {
+    memberId: 1,
+    userId: 'user-001',
+    email: 'minkyoung@example.com',
+    name: '김민경',
+    role: 'OWNER',
+    joinedAt: '2026-05-01T09:00:00Z',
+  },
+  {
+    memberId: 2,
+    userId: 'user-002',
+    email: 'jihoon@example.com',
+    name: '이지훈',
+    role: 'EDITOR',
+    joinedAt: '2026-05-10T11:00:00Z',
+  },
+  {
+    memberId: 3,
+    userId: 'user-003',
+    email: 'jihoon.park@example.com',
+    name: '박지훈',
+    role: 'VIEWER',
+    joinedAt: '2026-05-15T14:30:00Z',
+  },
+]
+
 const mockMessages: ProjectMessage[] = [
   {
     id: 1,
@@ -286,6 +314,16 @@ export const handlers = [
       )
     const detail: FileVersionDetail = { ...version, content: mockVersionContents[versionId] ?? '' }
     return ok(detail)
+  }),
+
+  // Members
+  http.get(`${BASE}/api/projects/:projectId/members`, ({ params }) => {
+    if (params.projectId !== PROJECT_ID)
+      return HttpResponse.json(
+        { success: false, code: 'NOT_FOUND', message: 'Project not found', data: null },
+        { status: 404 },
+      )
+    return ok({ members: mockMembers })
   }),
 
   // Messages
