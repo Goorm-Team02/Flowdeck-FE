@@ -1,7 +1,7 @@
 import { apiClient } from '@/shared/api/client'
 import type { ApiResponse } from '@/shared/types/api'
 
-import type { Member } from '../types'
+import type { Member, MemberRole } from '../types'
 
 interface MemberListResponse {
   members: Member[]
@@ -12,4 +12,16 @@ export async function getMembers(projectId: string): Promise<Member[]> {
     `/api/projects/${projectId}/members`,
   )
   return res.data.data.members
+}
+
+export async function inviteMember(
+  projectId: string,
+  email: string,
+  role: 'EDITOR' | 'VIEWER',
+): Promise<Member> {
+  const res = await apiClient.post<ApiResponse<Member>>(`/api/projects/${projectId}/members`, {
+    email,
+    role,
+  } satisfies { email: string; role: MemberRole })
+  return res.data.data
 }
