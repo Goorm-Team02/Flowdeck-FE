@@ -25,3 +25,15 @@ export async function inviteMember(
   } satisfies { email: string; role: MemberRole })
   return res.data.data
 }
+
+export async function updateMemberRole(
+  projectId: string,
+  memberId: number,
+  role: MemberRole,
+): Promise<Member> {
+  const res = await apiClient.patch<ApiResponse<Member>>(
+    `/api/projects/${projectId}/members/${memberId}`,
+    { role } satisfies { role: MemberRole },
+  )
+  return res.data.data
+}

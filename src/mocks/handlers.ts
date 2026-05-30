@@ -366,6 +366,36 @@ export const handlers = [
     return ok(newMember)
   }),
 
+  // Update member role
+  http.patch(`${BASE}/api/projects/:projectId/members/:memberId`, async ({ params, request }) => {
+    const memberId = Number(params.memberId)
+    const idx = mockMembers.findIndex((m) => m.memberId === memberId)
+    if (idx === -1)
+      return HttpResponse.json(
+        { success: false, code: 'NOT_FOUND', message: 'Member not found', data: null },
+        { status: 404 },
+      )
+
+    const owners = mockMembers.filter((m) => m.role === 'OWNER')
+    const target = mockMembers[idx]
+    const body = (await request.json()) as { role: string }
+
+    // 마지막 OWNER 보호
+    if (target.role === 'OWNER' && owners.length === 1 && body.role !== 'OWNER')
+      return HttpResponse.json(
+        {
+          success: false,
+          code: 'LAST_OWNER_CONSTRAINT',
+          message: '마지막 OWNER의 권한은 변경할 수 없습니다.',
+          data: null,
+        },
+        { status: 403 },
+      )
+
+    mockMembers[idx] = { ...target, role: body.role as Member['role'] }
+    return ok(mockMembers[idx])
+  }),
+
   // Messages
   http.get(`${BASE}/api/projects/:projectId/messages`, ({ params }) => {
     if (params.projectId !== PROJECT_ID)
