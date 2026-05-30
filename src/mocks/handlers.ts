@@ -316,7 +316,7 @@ export const handlers = [
     return ok(detail)
   }),
 
-  // Members
+  // Members list
   http.get(`${BASE}/api/projects/:projectId/members`, ({ params }) => {
     if (params.projectId !== PROJECT_ID)
       return HttpResponse.json(
@@ -324,6 +324,46 @@ export const handlers = [
         { status: 404 },
       )
     return ok({ members: mockMembers })
+  }),
+
+  // Invite member
+  http.post(`${BASE}/api/projects/:projectId/members`, async ({ request }) => {
+    const body = (await request.json()) as { email: string; role: 'EDITOR' | 'VIEWER' }
+    const { email, role } = body
+
+    if (mockMembers.some((m) => m.email === email))
+      return HttpResponse.json(
+        {
+          success: false,
+          code: 'ALREADY_MEMBER',
+          message: '이미 프로젝트 멤버입니다.',
+          data: null,
+        },
+        { status: 409 },
+      )
+
+    // 존재하지 않는 이메일 시뮬레이션 — "unknown@" 도메인으로 테스트
+    if (email.startsWith('unknown@'))
+      return HttpResponse.json(
+        {
+          success: false,
+          code: 'USER_NOT_FOUND',
+          message: '존재하지 않는 이메일입니다.',
+          data: null,
+        },
+        { status: 404 },
+      )
+
+    const newMember: Member = {
+      memberId: mockMembers.length + 10,
+      userId: `user-${Date.now()}`,
+      email,
+      name: email.split('@')[0],
+      role,
+      joinedAt: new Date().toISOString(),
+    }
+    mockMembers.push(newMember)
+    return ok(newMember)
   }),
 
   // Messages

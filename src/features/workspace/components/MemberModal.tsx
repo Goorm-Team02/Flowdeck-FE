@@ -3,7 +3,10 @@ import { useParams } from 'react-router-dom'
 
 import { useAtom } from 'jotai'
 
+import { isApiError, isNetworkError } from '@/shared/api/errors'
+
 import { useCurrentMemberRole } from '../hooks/useCurrentMemberRole'
+import { useInviteMember } from '../hooks/useInviteMember'
 import { useMembers } from '../hooks/useMembers'
 import { memberModalOpenAtom } from '../stores/memberModalAtom'
 import type { MemberRole } from '../types'
@@ -50,6 +53,18 @@ function RoleBadge({ role }: { role: MemberRole }) {
   )
 }
 
+function resolveInviteError(error: unknown): string {
+  if (isApiError(error)) {
+    if (error.status === 409) return '이미 프로젝트 멤버입니다.'
+    if (error.status === 404) return '존재하지 않는 이메일입니다.'
+    if (error.status === 403) return '초대 권한이 없습니다.'
+  }
+  if (isNetworkError(error)) return error.message
+  return '초대에 실패했습니다. 다시 시도해 주세요.'
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 export default function MemberModal() {
   const { projectId = '' } = useParams<{ projectId: string }>()
   const [isOpen, setIsOpen] = useAtom(memberModalOpenAtom)
@@ -58,9 +73,12 @@ export default function MemberModal() {
   const isOwner = currentRole === 'OWNER'
 
   const { data: members = [], isLoading, isError } = useMembers(projectId)
+  const inviteMutation = useInviteMember(projectId)
 
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<'EDITOR' | 'VIEWER'>('EDITOR')
+  const [emailError, setEmailError] = useState('')
+  const [inviteSuccess, setInviteSuccess] = useState(false)
 
   useEffect(() => {
     if (!isOpen) return
@@ -72,6 +90,28 @@ export default function MemberModal() {
   }, [isOpen, setIsOpen])
 
   if (!isOpen) return null
+
+  function handleInvite() {
+    const email = inviteEmail.trim()
+    if (!EMAIL_RE.test(email)) {
+      setEmailError('유효한 이메일 주소를 입력해 주세요.')
+      return
+    }
+    setEmailError('')
+    setInviteSuccess(false)
+    inviteMutation.mutate(
+      { email, role: inviteRole },
+      {
+        onSuccess: () => {
+          setInviteEmail('')
+          setInviteSuccess(true)
+        },
+        onError: () => {
+          setInviteSuccess(false)
+        },
+      },
+    )
+  }
 
   return (
     <div
@@ -105,19 +145,30 @@ export default function MemberModal() {
           <div className="px-6 pb-5">
             <div className="flex gap-2">
               <input
-                className="flex-1 bg-bg-tertiary border border-border rounded-lg px-3 py-2 text-[13px] text-text-primary placeholder:text-text-primary/30 outline-none focus:border-accent/60 transition-colors min-w-0"
+                className={`flex-1 bg-bg-tertiary border rounded-lg px-3 py-2 text-[13px] text-text-primary placeholder:text-text-primary/30 outline-none transition-colors min-w-0 ${
+                  emailError
+                    ? 'border-red-500/60 focus:border-red-500/80'
+                    : 'border-border focus:border-accent/60'
+                }`}
                 placeholder="이메일로 멤버 초대"
                 value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') setInviteEmail('')
+                onChange={(e) => {
+                  setInviteEmail(e.target.value)
+                  setEmailError('')
+                  setInviteSuccess(false)
+                  inviteMutation.reset()
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleInvite()
+                }}
+                disabled={inviteMutation.isPending}
               />
               <div className="relative shrink-0">
                 <select
                   value={inviteRole}
                   onChange={(e) => setInviteRole(e.target.value as 'EDITOR' | 'VIEWER')}
                   className="appearance-none bg-bg-tertiary border border-border rounded-lg pl-3 pr-7 py-2 text-[13px] text-text-primary/80 outline-none cursor-pointer hover:border-text-primary/30 transition-colors"
+                  disabled={inviteMutation.isPending}
                 >
                   <option value="EDITOR">EDITOR</option>
                   <option value="VIEWER">VIEWER</option>
@@ -135,12 +186,24 @@ export default function MemberModal() {
                 </svg>
               </div>
               <button
-                onClick={() => setInviteEmail('')}
-                className="shrink-0 px-4 py-2 bg-accent text-white text-[13px] font-medium rounded-lg hover:opacity-90 transition-opacity"
+                onClick={handleInvite}
+                disabled={inviteMutation.isPending}
+                className="shrink-0 px-4 py-2 bg-accent text-white text-[13px] font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                초대
+                {inviteMutation.isPending ? '초대 중…' : '초대'}
               </button>
             </div>
+
+            {/* Inline feedback */}
+            {emailError && <p className="mt-2 text-[12px] text-red-400">{emailError}</p>}
+            {!emailError && inviteMutation.isError && (
+              <p className="mt-2 text-[12px] text-red-400">
+                {resolveInviteError(inviteMutation.error)}
+              </p>
+            )}
+            {inviteSuccess && (
+              <p className="mt-2 text-[12px] text-green-400">멤버를 초대했습니다.</p>
+            )}
           </div>
         )}
 
