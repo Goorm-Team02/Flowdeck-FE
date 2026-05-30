@@ -8,8 +8,9 @@ import { isApiError, isNetworkError } from '@/shared/api/errors'
 import { useCurrentMemberRole } from '../hooks/useCurrentMemberRole'
 import { useInviteMember } from '../hooks/useInviteMember'
 import { useMembers } from '../hooks/useMembers'
+import { useUpdateMemberRole } from '../hooks/useUpdateMemberRole'
 import { memberModalOpenAtom } from '../stores/memberModalAtom'
-import type { MemberRole } from '../types'
+import type { Member, MemberRole } from '../types'
 
 // 현재 사용자 ID — 추후 auth 연동 시 실제 값으로 교체
 const useCurrentUserId = () => null as string | null
@@ -63,7 +64,20 @@ function resolveInviteError(error: unknown): string {
   return '초대에 실패했습니다. 다시 시도해 주세요.'
 }
 
+function resolveRoleError(error: unknown): string {
+  if (isApiError(error)) {
+    if (error.status === 403) {
+      if (error.code === 'LAST_OWNER_CONSTRAINT') return '마지막 OWNER의 권한은 변경할 수 없습니다.'
+      return '권한 변경 권한이 없습니다.'
+    }
+  }
+  if (isNetworkError(error)) return error.message
+  return '권한 변경에 실패했습니다. 다시 시도해 주세요.'
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+type PendingRoleChange = { memberId: number; newRole: MemberRole }
 
 export default function MemberModal() {
   const { projectId = '' } = useParams<{ projectId: string }>()
@@ -74,11 +88,17 @@ export default function MemberModal() {
 
   const { data: members = [], isLoading, isError } = useMembers(projectId)
   const inviteMutation = useInviteMember(projectId)
+  const updateRoleMutation = useUpdateMemberRole(projectId)
 
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<'EDITOR' | 'VIEWER'>('EDITOR')
   const [emailError, setEmailError] = useState('')
   const [inviteSuccess, setInviteSuccess] = useState(false)
+
+  const [pendingChange, setPendingChange] = useState<PendingRoleChange | null>(null)
+  const [roleChangeError, setRoleChangeError] = useState('')
+
+  const ownerCount = members.filter((m) => m.role === 'OWNER').length
 
   useEffect(() => {
     if (!isOpen) return
@@ -111,6 +131,35 @@ export default function MemberModal() {
         },
       },
     )
+  }
+
+  function handleRoleSelectChange(member: Member, newRole: MemberRole) {
+    if (newRole === member.role) return
+    setPendingChange({ memberId: member.memberId, newRole })
+    setRoleChangeError('')
+    updateRoleMutation.reset()
+  }
+
+  function confirmRoleChange() {
+    if (!pendingChange) return
+    updateRoleMutation.mutate(
+      { memberId: pendingChange.memberId, role: pendingChange.newRole },
+      {
+        onSuccess: () => setPendingChange(null),
+        onError: (err) => setRoleChangeError(resolveRoleError(err)),
+      },
+    )
+  }
+
+  function cancelRoleChange() {
+    setPendingChange(null)
+    setRoleChangeError('')
+    updateRoleMutation.reset()
+  }
+
+  function getSelectValue(member: Member): MemberRole {
+    if (pendingChange?.memberId === member.memberId) return pendingChange.newRole
+    return member.role
   }
 
   return (
@@ -232,38 +281,119 @@ export default function MemberModal() {
           )}
 
           {!isLoading && !isError && members.length > 0 && (
-            <div className="border border-border rounded-lg overflow-hidden max-h-[260px] overflow-y-auto">
-              {members.map((member, index) => (
-                <div
-                  key={member.memberId}
-                  className={`flex items-center gap-3 px-4 py-3 ${
-                    index < members.length - 1 ? 'border-b border-border' : ''
-                  }`}
-                >
-                  {/* Avatar */}
-                  <div
-                    className={`w-9 h-9 rounded-full ${avatarColor(member.memberId)} flex items-center justify-center text-white text-[12px] font-bold shrink-0`}
-                  >
-                    {member.name.slice(0, 2)}
-                  </div>
+            <div className="border border-border rounded-lg overflow-hidden max-h-[320px] overflow-y-auto">
+              {members.map((member, index) => {
+                const isLastOwnerMember = member.role === 'OWNER' && ownerCount === 1
+                const hasPending = pendingChange?.memberId === member.memberId
+                const isMutating = updateRoleMutation.isPending && hasPending
 
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[13px] font-medium text-text-primary truncate">
-                        {member.name}
-                      </span>
-                      {currentUserId === member.userId && (
-                        <span className="shrink-0 text-[11px] text-text-primary/35">(나)</span>
+                return (
+                  <div key={member.memberId}>
+                    {/* Member row */}
+                    <div
+                      className={`flex items-center gap-3 px-4 py-3 ${
+                        index < members.length - 1 && !hasPending ? 'border-b border-border' : ''
+                      }`}
+                    >
+                      {/* Avatar */}
+                      <div
+                        className={`w-9 h-9 rounded-full ${avatarColor(member.memberId)} flex items-center justify-center text-white text-[12px] font-bold shrink-0`}
+                      >
+                        {member.name.slice(0, 2)}
+                      </div>
+
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[13px] font-medium text-text-primary truncate">
+                            {member.name}
+                          </span>
+                          {currentUserId === member.userId && (
+                            <span className="shrink-0 text-[11px] text-text-primary/35">(나)</span>
+                          )}
+                        </div>
+                        <p className="text-[12px] text-text-primary/40 truncate">{member.email}</p>
+                      </div>
+
+                      {/* Role: select for OWNER, badge otherwise */}
+                      {isOwner ? (
+                        <div className="relative shrink-0">
+                          <select
+                            value={getSelectValue(member)}
+                            onChange={(e) =>
+                              handleRoleSelectChange(member, e.target.value as MemberRole)
+                            }
+                            disabled={isLastOwnerMember || isMutating || !!pendingChange}
+                            title={
+                              isLastOwnerMember
+                                ? '마지막 OWNER의 권한은 변경할 수 없어요'
+                                : undefined
+                            }
+                            className="appearance-none bg-bg-tertiary border border-border rounded-lg pl-2.5 pr-6 py-1 text-[12px] text-text-primary/80 outline-none cursor-pointer hover:border-text-primary/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            <option value="OWNER">OWNER</option>
+                            <option value="EDITOR">EDITOR</option>
+                            <option value="VIEWER">VIEWER</option>
+                          </select>
+                          <svg
+                            className="absolute right-1.5 top-1/2 -translate-y-1/2 text-text-primary/40 pointer-events-none"
+                            width="10"
+                            height="10"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                          >
+                            <polyline points="6 9 12 15 18 9" />
+                          </svg>
+                        </div>
+                      ) : (
+                        <RoleBadge role={member.role} />
                       )}
                     </div>
-                    <p className="text-[12px] text-text-primary/40 truncate">{member.email}</p>
-                  </div>
 
-                  {/* Role badge */}
-                  <RoleBadge role={member.role} />
-                </div>
-              ))}
+                    {/* Confirm bar — shown when this member has a pending role change */}
+                    {hasPending && (
+                      <div
+                        className={`px-4 py-3 bg-bg-tertiary/60 ${
+                          index < members.length - 1 ? 'border-b border-border' : ''
+                        }`}
+                      >
+                        <p className="text-[12px] text-text-primary/70">
+                          <span className="font-medium text-text-primary">{member.name}</span>의
+                          권한을{' '}
+                          <span className="font-medium text-text-primary">
+                            {pendingChange.newRole}
+                          </span>
+                          으로 변경합니다.
+                        </p>
+                        <p className="text-[11px] text-amber-400/80 mt-0.5">
+                          ⚠ 변경 시 해당 사용자가 강제 로그아웃됩니다.
+                        </p>
+                        {roleChangeError && (
+                          <p className="text-[11px] text-red-400 mt-1">{roleChangeError}</p>
+                        )}
+                        <div className="flex gap-2 mt-2.5">
+                          <button
+                            onClick={cancelRoleChange}
+                            disabled={isMutating}
+                            className="px-3 py-1 text-[12px] text-text-primary/50 hover:text-text-primary border border-border rounded-md transition-colors disabled:opacity-40"
+                          >
+                            취소
+                          </button>
+                          <button
+                            onClick={confirmRoleChange}
+                            disabled={isMutating}
+                            className="px-3 py-1 text-[12px] text-white bg-accent rounded-md hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isMutating ? '변경 중…' : '확인'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
