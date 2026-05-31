@@ -37,3 +37,11 @@ export async function updateMemberRole(
   )
   return res.data.data
 }
+
+export async function removeMember(projectId: string, memberId: number): Promise<void> {
+  await apiClient.delete(`/api/projects/${projectId}/members/${memberId}`)
+}
+
+export async function leaveProject(projectId: string): Promise<void> {
+  await apiClient.delete(`/api/projects/${projectId}/members/me`)
+}

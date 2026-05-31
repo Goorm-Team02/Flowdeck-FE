@@ -5,9 +5,11 @@ import { useAtom } from 'jotai'
 
 import { isApiError, isNetworkError } from '@/shared/api/errors'
 
-import { useCurrentMemberRole } from '../hooks/useCurrentMemberRole'
+import { isLastOwner, useCurrentMemberRole } from '../hooks/useCurrentMemberRole'
 import { useInviteMember } from '../hooks/useInviteMember'
+import { useLeaveProject } from '../hooks/useLeaveProject'
 import { useMembers } from '../hooks/useMembers'
+import { useRemoveMember } from '../hooks/useRemoveMember'
 import { useUpdateMemberRole } from '../hooks/useUpdateMemberRole'
 import { memberModalOpenAtom } from '../stores/memberModalAtom'
 import type { Member, MemberRole } from '../types'
@@ -75,6 +77,26 @@ function resolveRoleError(error: unknown): string {
   return '권한 변경에 실패했습니다. 다시 시도해 주세요.'
 }
 
+function resolveRemoveError(error: unknown): string {
+  if (isApiError(error)) {
+    if (error.status === 403) return '멤버를 제거할 권한이 없습니다.'
+  }
+  if (isNetworkError(error)) return error.message
+  return '멤버 제거에 실패했습니다. 다시 시도해 주세요.'
+}
+
+function resolveLeaveError(error: unknown): string {
+  if (isApiError(error)) {
+    if (error.status === 403) {
+      if (error.code === 'LAST_OWNER_CONSTRAINT')
+        return '마지막 OWNER는 나갈 수 없습니다. 권한을 다른 멤버에게 위임해 주세요.'
+      return '나가기 권한이 없습니다.'
+    }
+  }
+  if (isNetworkError(error)) return error.message
+  return '나가기에 실패했습니다. 다시 시도해 주세요.'
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 type PendingRoleChange = { memberId: number; newRole: MemberRole }
@@ -89,6 +111,8 @@ export default function MemberModal() {
   const { data: members = [], isLoading, isError } = useMembers(projectId)
   const inviteMutation = useInviteMember(projectId)
   const updateRoleMutation = useUpdateMemberRole(projectId)
+  const removeMutation = useRemoveMember(projectId)
+  const leaveMutation = useLeaveProject(projectId)
 
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<'EDITOR' | 'VIEWER'>('EDITOR')
@@ -98,7 +122,14 @@ export default function MemberModal() {
   const [pendingChange, setPendingChange] = useState<PendingRoleChange | null>(null)
   const [roleChangeError, setRoleChangeError] = useState('')
 
+  const [pendingRemove, setPendingRemove] = useState<number | null>(null)
+  const [removeError, setRemoveError] = useState('')
+
+  const [confirmLeave, setConfirmLeave] = useState(false)
+  const [leaveError, setLeaveError] = useState('')
+
   const ownerCount = members.filter((m) => m.role === 'OWNER').length
+  const canLeave = !isLastOwner(members, currentUserId)
 
   useEffect(() => {
     if (!isOpen) return
@@ -126,9 +157,7 @@ export default function MemberModal() {
           setInviteEmail('')
           setInviteSuccess(true)
         },
-        onError: () => {
-          setInviteSuccess(false)
-        },
+        onError: () => setInviteSuccess(false),
       },
     )
   }
@@ -136,6 +165,7 @@ export default function MemberModal() {
   function handleRoleSelectChange(member: Member, newRole: MemberRole) {
     if (newRole === member.role) return
     setPendingChange({ memberId: member.memberId, newRole })
+    setPendingRemove(null)
     setRoleChangeError('')
     updateRoleMutation.reset()
   }
@@ -160,6 +190,39 @@ export default function MemberModal() {
   function getSelectValue(member: Member): MemberRole {
     if (pendingChange?.memberId === member.memberId) return pendingChange.newRole
     return member.role
+  }
+
+  function handleRemoveClick(memberId: number) {
+    setPendingRemove(memberId)
+    setPendingChange(null)
+    setRemoveError('')
+    removeMutation.reset()
+  }
+
+  function confirmRemove() {
+    if (pendingRemove === null) return
+    removeMutation.mutate(pendingRemove, {
+      onSuccess: () => setPendingRemove(null),
+      onError: (err) => setRemoveError(resolveRemoveError(err)),
+    })
+  }
+
+  function cancelRemove() {
+    setPendingRemove(null)
+    setRemoveError('')
+    removeMutation.reset()
+  }
+
+  function handleLeaveClick() {
+    setConfirmLeave(true)
+    setLeaveError('')
+    leaveMutation.reset()
+  }
+
+  function confirmLeaveProject() {
+    leaveMutation.mutate(undefined, {
+      onError: (err) => setLeaveError(resolveLeaveError(err)),
+    })
   }
 
   return (
@@ -243,7 +306,6 @@ export default function MemberModal() {
               </button>
             </div>
 
-            {/* Inline feedback */}
             {emailError && <p className="mt-2 text-[12px] text-red-400">{emailError}</p>}
             {!emailError && inviteMutation.isError && (
               <p className="mt-2 text-[12px] text-red-400">
@@ -284,15 +346,21 @@ export default function MemberModal() {
             <div className="border border-border rounded-lg overflow-hidden max-h-[320px] overflow-y-auto">
               {members.map((member, index) => {
                 const isLastOwnerMember = member.role === 'OWNER' && ownerCount === 1
-                const hasPending = pendingChange?.memberId === member.memberId
-                const isMutating = updateRoleMutation.isPending && hasPending
+                const isSelf = currentUserId === member.userId
+                const hasPendingRole = pendingChange?.memberId === member.memberId
+                const hasPendingRemove = pendingRemove === member.memberId
+                const isRoleMutating = updateRoleMutation.isPending && hasPendingRole
+                const isRemoveMutating = removeMutation.isPending && hasPendingRemove
+                const isAnyPending = pendingChange !== null || pendingRemove !== null
 
                 return (
                   <div key={member.memberId}>
                     {/* Member row */}
                     <div
-                      className={`flex items-center gap-3 px-4 py-3 ${
-                        index < members.length - 1 && !hasPending ? 'border-b border-border' : ''
+                      className={`group flex items-center gap-3 px-4 py-3 ${
+                        index < members.length - 1 && !hasPendingRole && !hasPendingRemove
+                          ? 'border-b border-border'
+                          : ''
                       }`}
                     >
                       {/* Avatar */}
@@ -308,7 +376,7 @@ export default function MemberModal() {
                           <span className="text-[13px] font-medium text-text-primary truncate">
                             {member.name}
                           </span>
-                          {currentUserId === member.userId && (
+                          {isSelf && (
                             <span className="shrink-0 text-[11px] text-text-primary/35">(나)</span>
                           )}
                         </div>
@@ -323,7 +391,7 @@ export default function MemberModal() {
                             onChange={(e) =>
                               handleRoleSelectChange(member, e.target.value as MemberRole)
                             }
-                            disabled={isLastOwnerMember || isMutating || !!pendingChange}
+                            disabled={isLastOwnerMember || isRoleMutating || isAnyPending}
                             title={
                               isLastOwnerMember
                                 ? '마지막 OWNER의 권한은 변경할 수 없어요'
@@ -350,10 +418,31 @@ export default function MemberModal() {
                       ) : (
                         <RoleBadge role={member.role} />
                       )}
+
+                      {/* Remove button (OWNER only, not self) */}
+                      {isOwner && !isSelf && (
+                        <button
+                          onClick={() => handleRemoveClick(member.memberId)}
+                          disabled={isAnyPending}
+                          title="멤버 제거"
+                          className="shrink-0 ml-1 p-1 text-text-primary/20 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all disabled:pointer-events-none"
+                        >
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          >
+                            <path d="M3 6h18M19 6l-1 14H6L5 6M10 11v6M14 11v6M9 6V4h6v2" />
+                          </svg>
+                        </button>
+                      )}
                     </div>
 
-                    {/* Confirm bar — shown when this member has a pending role change */}
-                    {hasPending && (
+                    {/* Role change confirm bar */}
+                    {hasPendingRole && (
                       <div
                         className={`px-4 py-3 bg-bg-tertiary/60 ${
                           index < members.length - 1 ? 'border-b border-border' : ''
@@ -376,17 +465,50 @@ export default function MemberModal() {
                         <div className="flex gap-2 mt-2.5">
                           <button
                             onClick={cancelRoleChange}
-                            disabled={isMutating}
+                            disabled={isRoleMutating}
                             className="px-3 py-1 text-[12px] text-text-primary/50 hover:text-text-primary border border-border rounded-md transition-colors disabled:opacity-40"
                           >
                             취소
                           </button>
                           <button
                             onClick={confirmRoleChange}
-                            disabled={isMutating}
+                            disabled={isRoleMutating}
                             className="px-3 py-1 text-[12px] text-white bg-accent rounded-md hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            {isMutating ? '변경 중…' : '확인'}
+                            {isRoleMutating ? '변경 중…' : '확인'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Remove confirm bar */}
+                    {hasPendingRemove && (
+                      <div
+                        className={`px-4 py-3 bg-bg-tertiary/60 ${
+                          index < members.length - 1 ? 'border-b border-border' : ''
+                        }`}
+                      >
+                        <p className="text-[12px] text-text-primary/70">
+                          <span className="font-medium text-text-primary">{member.name}</span>을(를)
+                          프로젝트에서 제거합니다.
+                        </p>
+                        {removeError && (
+                          <p className="text-[11px] text-red-400 mt-1">{removeError}</p>
+                        )}
+                        <div className="flex gap-2 mt-2.5">
+                          <button
+                            onClick={cancelRemove}
+                            disabled={isRemoveMutating}
+                            className="px-3 py-1 text-[12px] text-text-primary/50 hover:text-text-primary border border-border rounded-md transition-colors disabled:opacity-40"
+                          >
+                            취소
+                          </button>
+                          <button
+                            onClick={confirmRemove}
+                            disabled={isRemoveMutating}
+                            className="px-3 py-1 text-[12px] text-white bg-red-500 rounded-md hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isRemoveMutating ? '제거 중…' : '제거'}
                           </button>
                         </div>
                       </div>
@@ -399,7 +521,44 @@ export default function MemberModal() {
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end px-6 py-4 border-t border-border">
+        <div className="flex items-center justify-between px-6 py-4 border-t border-border">
+          {/* Leave project */}
+          {confirmLeave ? (
+            <div className="flex-1">
+              <p className="text-[12px] text-text-primary/70 mb-1">프로젝트에서 나가시겠습니까?</p>
+              {leaveError && <p className="text-[11px] text-red-400 mb-1">{leaveError}</p>}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setConfirmLeave(false)
+                    setLeaveError('')
+                    leaveMutation.reset()
+                  }}
+                  disabled={leaveMutation.isPending}
+                  className="px-3 py-1 text-[12px] text-text-primary/50 hover:text-text-primary border border-border rounded-md transition-colors disabled:opacity-40"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={confirmLeaveProject}
+                  disabled={leaveMutation.isPending}
+                  className="px-3 py-1 text-[12px] text-white bg-red-500 rounded-md hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {leaveMutation.isPending ? '나가는 중…' : '나가기'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={handleLeaveClick}
+              disabled={!canLeave}
+              title={!canLeave ? '권한을 다른 멤버에게 위임 후 나갈 수 있습니다.' : undefined}
+              className="text-[13px] text-red-400/70 hover:text-red-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              프로젝트 나가기
+            </button>
+          )}
+
           <button
             onClick={() => setIsOpen(false)}
             className="px-4 py-1.5 text-[13px] text-text-primary/60 hover:text-text-primary transition-colors"
