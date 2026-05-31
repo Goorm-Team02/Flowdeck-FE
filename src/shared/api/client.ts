@@ -1,6 +1,8 @@
 import axios from 'axios'
 import type { AxiosError, InternalAxiosRequestConfig } from 'axios'
+
 import type { ApiResponse } from '@/shared/types/api'
+
 import { ApiError, NetworkError, UnauthorizedError } from './errors'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
@@ -38,6 +40,17 @@ let waitQueue: Array<(token: string) => void> = []
 function drainQueue(token: string) {
   waitQueue.forEach((resolve) => resolve(token))
   waitQueue = []
+}
+
+// ─── Forced logout ────────────────────────────────────────────────────────────
+
+// Full page reload clears all in-memory state (React Query cache, etc.).
+// /login route is pending auth implementation — currently resolves to NotFoundPage.
+export function forcedLogout(reason?: string) {
+  tokenStorage.clear()
+  waitQueue = []
+  const url = reason ? `/login?reason=${encodeURIComponent(reason)}` : '/login'
+  window.location.href = url
 }
 
 async function refreshAccessToken(): Promise<string> {
@@ -95,9 +108,7 @@ apiClient.interceptors.response.use(
         originalRequest.headers.Authorization = `Bearer ${newToken}`
         return apiClient(originalRequest)
       } catch {
-        tokenStorage.clear()
-        waitQueue = []
-        window.location.href = '/login'
+        forcedLogout()
         return Promise.reject(new UnauthorizedError())
       } finally {
         isRefreshing = false
