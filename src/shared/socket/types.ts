@@ -8,6 +8,7 @@ export const TOPICS = {
   MESSAGES: (projectId: string) => `/topic/projects/${projectId}/messages`,
   PRESENCE: (projectId: string) => `/topic/projects/${projectId}/presence`,
   FILES: (projectId: string) => `/topic/projects/${projectId}/files`,
+  MEMBERS: (projectId: string) => `/topic/projects/${projectId}/members`,
 } as const
 
 export const DESTINATIONS = {
@@ -54,6 +55,17 @@ export interface ProjectPresenceResponse {
   connectedCount: number
   members: PresenceMember[]
   occurredAt: string
+}
+
+// ─── 멤버 이벤트 ─────────────────────────────────────────────────────────────
+
+export type MemberEventType = 'KICKED' | 'ROLE_CHANGED'
+
+export interface ProjectMemberEventResponse {
+  eventType: MemberEventType
+  memberId: number
+  userId: string
+  newRole?: 'OWNER' | 'EDITOR' | 'VIEWER'
 }
 
 // ─── 파일 이벤트 ──────────────────────────────────────────────────────────────
