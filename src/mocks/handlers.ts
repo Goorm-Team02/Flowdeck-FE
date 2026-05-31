@@ -396,6 +396,38 @@ export const handlers = [
     return ok(mockMembers[idx])
   }),
 
+  // Leave project (me — must come before :memberId to avoid path conflict)
+  http.delete(`${BASE}/api/projects/:projectId/members/me`, () => {
+    return ok({})
+  }),
+
+  // Remove member
+  http.delete(`${BASE}/api/projects/:projectId/members/:memberId`, ({ params }) => {
+    const memberId = Number(params.memberId)
+    const idx = mockMembers.findIndex((m) => m.memberId === memberId)
+    if (idx === -1)
+      return HttpResponse.json(
+        { success: false, code: 'NOT_FOUND', message: 'Member not found', data: null },
+        { status: 404 },
+      )
+
+    const owners = mockMembers.filter((m) => m.role === 'OWNER')
+    const target = mockMembers[idx]
+    if (target.role === 'OWNER' && owners.length === 1)
+      return HttpResponse.json(
+        {
+          success: false,
+          code: 'LAST_OWNER_CONSTRAINT',
+          message: '마지막 OWNER는 제거할 수 없습니다.',
+          data: null,
+        },
+        { status: 403 },
+      )
+
+    mockMembers.splice(idx, 1)
+    return ok({})
+  }),
+
   // Messages
   http.get(`${BASE}/api/projects/:projectId/messages`, ({ params }) => {
     if (params.projectId !== PROJECT_ID)
