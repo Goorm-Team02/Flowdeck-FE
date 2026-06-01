@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useRef } from 'react'
 import type { ReactNode } from 'react'
 
-import type { Client, IMessage, StompSubscription } from '@stomp/stompjs'
+import type { IMessage, StompSubscription } from '@stomp/stompjs'
 import { useSetAtom } from 'jotai'
 
 import { tokenStorage } from '@/shared/api/client'
@@ -14,43 +14,46 @@ interface Props {
 }
 
 export function SocketProvider({ children }: Props) {
-  const clientRef = useRef<Client | null>(null)
   const setStatus = useSetAtom(socketStatusAtom)
 
-  const subscribe = useCallback(
-    (topic: string, callback: (msg: IMessage) => void): StompSubscription | undefined =>
-      clientRef.current?.subscribe(topic, callback),
-    [],
-  )
+  const clientRef = useRef(createStompClient(tokenStorage.getAccess))
 
-  const publish = useCallback((destination: string, body: unknown) => {
-    clientRef.current?.publish({ destination, body: JSON.stringify(body) })
-  }, [])
+  const connect = useCallback(() => {
+    if (clientRef.current.active) return
 
-  useEffect(() => {
-    const stompClient = createStompClient(tokenStorage.getAccess)
-    clientRef.current = stompClient
-
-    stompClient.onConnect = () => setStatus('connected')
-    stompClient.onDisconnect = () => setStatus('disconnected')
-    stompClient.onStompError = (frame) => {
+    clientRef.current.onConnect = () => setStatus('connected')
+    clientRef.current.onDisconnect = () => setStatus('disconnected')
+    clientRef.current.onStompError = (frame) => {
       console.error('[STOMP] error', frame.headers['message'])
       setStatus('disconnected')
     }
-    stompClient.onWebSocketError = (event) => {
+    clientRef.current.onWebSocketError = (event) => {
       console.error('[STOMP] ws error', event)
       setStatus('disconnected')
     }
 
     setStatus('connecting')
-    stompClient.activate()
-
-    return () => {
-      stompClient.deactivate()
-      clientRef.current = null
-      setStatus('disconnected')
-    }
+    clientRef.current.activate()
   }, [setStatus])
 
-  return <SocketContext.Provider value={{ subscribe, publish }}>{children}</SocketContext.Provider>
+  const disconnect = useCallback(() => {
+    clientRef.current.deactivate()
+    setStatus('disconnected')
+  }, [setStatus])
+
+  const subscribe = useCallback(
+    (topic: string, callback: (msg: IMessage) => void): StompSubscription | undefined =>
+      clientRef.current.subscribe(topic, callback),
+    [],
+  )
+
+  const publish = useCallback((destination: string, body: unknown) => {
+    clientRef.current.publish({ destination, body: JSON.stringify(body) })
+  }, [])
+
+  return (
+    <SocketContext.Provider value={{ connect, disconnect, subscribe, publish }}>
+      {children}
+    </SocketContext.Provider>
+  )
 }

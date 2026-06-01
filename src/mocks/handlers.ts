@@ -255,6 +255,43 @@ function ok<T>(data: T): HttpResponse<ApiResponse<T>> {
 }
 
 export const handlers = [
+  // Login
+  http.post(`${BASE}/api/auth/login`, async ({ request }) => {
+    const body = (await request.json()) as { email: string; password: string }
+    if (!body.email || !body.password) {
+      return HttpResponse.json(
+        {
+          success: false,
+          code: 'INVALID_CREDENTIALS',
+          message: '이메일 또는 비밀번호가 올바르지 않습니다.',
+          data: null,
+        },
+        { status: 401 },
+      )
+    }
+    return ok({ accessToken: 'mock-access-token', refreshToken: 'mock-refresh-token' })
+  }),
+
+  // Join project via invite link
+  http.post(`${BASE}/api/projects/:projectId/members/join`, ({ params }) => {
+    const newMember: Member = {
+      memberId: mockMembers.length + 20,
+      userId: `user-invite-${Date.now()}`,
+      email: 'invited@example.com',
+      name: '초대된 사용자',
+      role: 'VIEWER',
+      joinedAt: new Date().toISOString(),
+    }
+    if (params.projectId !== PROJECT_ID) {
+      return HttpResponse.json(
+        { success: false, code: 'NOT_FOUND', message: 'Project not found', data: null },
+        { status: 404 },
+      )
+    }
+    mockMembers.push(newMember)
+    return ok(newMember)
+  }),
+
   // File tree
   http.get(`${BASE}/api/projects/:projectId/files`, ({ params }) => {
     if (params.projectId !== PROJECT_ID)

@@ -1,8 +1,13 @@
+import { useContext, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { useAtomValue } from 'jotai'
 
+import { SocketContext } from '@/shared/socket/context'
+
+import { useFileSocket } from '../hooks/useFileSocket'
 import { useMemberSocket } from '../hooks/useMemberSocket'
+import { usePresenceSocket } from '../hooks/usePresenceSocket'
 import { activeSidebarPanelAtom } from '../stores/sidebarAtom'
 import ActivityBar from './ActivityBar'
 import ChatPanel from './ChatPanel'
@@ -15,8 +20,18 @@ import TopBar from './TopBar'
 export default function WorkspaceLayout() {
   const { projectId = '' } = useParams<{ projectId: string }>()
   const activeSidebarPanel = useAtomValue(activeSidebarPanelAtom)
+  const { connect, disconnect } = useContext(SocketContext)
+
+  useEffect(() => {
+    connect()
+    return () => {
+      disconnect()
+    }
+  }, [connect, disconnect])
 
   useMemberSocket(projectId)
+  usePresenceSocket(projectId)
+  useFileSocket(projectId)
 
   return (
     <div className="h-screen flex flex-col bg-bg-primary text-text-primary overflow-hidden">

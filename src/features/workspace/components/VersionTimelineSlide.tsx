@@ -3,10 +3,8 @@ import { useParams } from 'react-router-dom'
 
 import { useAtomValue, useSetAtom } from 'jotai'
 
-import { isApiError } from '@/shared/api/errors'
-
 import { useFileVersionTimeline } from '../hooks/useFileVersionTimeline'
-import { useRestoreFileVersion } from '../hooks/useRestoreFileVersion'
+import { useRestoreWithConfirm } from '../hooks/useRestoreWithConfirm'
 import { openFileIdAtom } from '../stores/openFileAtom'
 import { timelineOpenAtom } from '../stores/sidebarAtom'
 
@@ -38,48 +36,17 @@ export default function VersionTimelineSlide() {
   const isViewer = useIsViewer()
 
   const { data: cards = [], isLoading, isError } = useFileVersionTimeline(projectId, fileId)
-  const { mutate: restore, isPending: isRestoring } = useRestoreFileVersion(projectId)
+  const { restorePhase, isRestoring, requestRestore, cancelRestore, confirmRestore } =
+    useRestoreWithConfirm(projectId)
 
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null)
   const effectiveIdx = selectedIdx ?? (cards.length > 0 ? cards.length - 1 : 0)
   const selected = cards[effectiveIdx] ?? null
 
-  const [confirmVersionId, setConfirmVersionId] = useState<number | null>(null)
-  const [restoreResult, setRestoreResult] = useState<{ ok: boolean; message: string } | null>(null)
-
-  const confirmCard = cards.find((c) => c.id === confirmVersionId) ?? null
-
-  const handleRestoreConfirm = () => {
-    if (!fileId || !confirmVersionId) return
-    restore(
-      { fileId, versionId: confirmVersionId },
-      {
-        onSuccess: () => {
-          setConfirmVersionId(null)
-          setRestoreResult({ ok: true, message: `v${confirmCard?.version} 버전으로 복원됐습니다.` })
-          setTimeout(() => setRestoreResult(null), 3000)
-        },
-        onError: (error) => {
-          setConfirmVersionId(null)
-          if (isApiError(error)) {
-            if (error.status === 403) {
-              setRestoreResult({ ok: false, message: '복원 권한이 없습니다.' })
-            } else if (error.status === 409) {
-              setRestoreResult({
-                ok: false,
-                message: '다른 사용자가 먼저 파일을 수정했습니다. 잠시 후 다시 시도해주세요.',
-              })
-            } else {
-              setRestoreResult({ ok: false, message: error.message })
-            }
-          } else {
-            setRestoreResult({ ok: false, message: '복원 중 오류가 발생했습니다.' })
-          }
-          setTimeout(() => setRestoreResult(null), 4000)
-        },
-      },
-    )
-  }
+  const confirmCard =
+    restorePhase?.phase === 'confirm'
+      ? (cards.find((c) => c.id === restorePhase.versionId) ?? null)
+      : null
 
   const goPrev = () => setSelectedIdx(Math.max(0, effectiveIdx - 1))
   const goNext = () => setSelectedIdx(Math.min(cards.length - 1, effectiveIdx + 1))
@@ -89,15 +56,15 @@ export default function VersionTimelineSlide() {
   return (
     <div className="flex-1 flex flex-col bg-bg-primary overflow-hidden">
       {/* 토스트 */}
-      {restoreResult && (
+      {restorePhase?.phase === 'toast' && (
         <div
           className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-lg shadow-lg text-[13px] border ${
-            restoreResult.ok
+            restorePhase.ok
               ? 'bg-bg-secondary border-green-500/40 text-green-400'
               : 'bg-bg-secondary border-red-500/40 text-red-400'
           }`}
         >
-          {restoreResult.message}
+          {restorePhase.message}
         </div>
       )}
 
@@ -246,7 +213,7 @@ export default function VersionTimelineSlide() {
                   )}
                   {!isViewer && (
                     <button
-                      onClick={() => setConfirmVersionId(selected.id)}
+                      onClick={() => requestRestore(selected.id)}
                       className="px-2.5 py-1 text-[12px] rounded border border-border/60 text-text-primary/50 hover:text-text-primary/80 hover:border-border hover:bg-bg-tertiary transition-colors"
                     >
                       이 버전으로 복원
@@ -255,13 +222,13 @@ export default function VersionTimelineSlide() {
                 </div>
               </div>
               <div className="flex-1 overflow-auto font-mono text-[12px] leading-[1.7] bg-bg-secondary border-t border-border px-0 py-2">
-                {contentLines.map((line, i) => (
+                {contentLines.map((l, i) => (
                   <div key={i} className="flex items-start hover:bg-bg-hover/40">
                     <span className="w-12 shrink-0 text-right pr-4 text-text-muted select-none">
                       {i + 1}
                     </span>
                     <span className="flex-1 pr-6 whitespace-pre text-text-primary/80">
-                      {line || ' '}
+                      {l || ' '}
                     </span>
                   </div>
                 ))}
@@ -272,7 +239,7 @@ export default function VersionTimelineSlide() {
       )}
 
       {/* 복원 확인 모달 */}
-      {confirmVersionId && confirmCard && (
+      {restorePhase?.phase === 'confirm' && confirmCard && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-bg-secondary border border-border rounded-xl p-6 w-96 shadow-2xl">
             <h3 className="text-[15px] font-semibold text-text-primary mb-1">버전 복원</h3>
@@ -300,13 +267,13 @@ export default function VersionTimelineSlide() {
             </div>
             <div className="flex gap-2 justify-end">
               <button
-                onClick={() => setConfirmVersionId(null)}
+                onClick={cancelRestore}
                 className="px-4 py-1.5 text-[13px] text-text-primary/60 hover:text-text-primary transition-colors"
               >
                 취소
               </button>
               <button
-                onClick={handleRestoreConfirm}
+                onClick={() => fileId && confirmRestore(fileId, `v${confirmCard.version}`)}
                 disabled={isRestoring}
                 className="px-4 py-1.5 text-[13px] bg-accent text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
               >

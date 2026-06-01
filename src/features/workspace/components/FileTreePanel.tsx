@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 import { useParams } from 'react-router-dom'
 
-import { useAtom } from 'jotai'
+import { useAtom, useAtomValue } from 'jotai'
 
 import { isApiError } from '@/shared/api/errors'
 
@@ -11,6 +11,8 @@ import { useDeleteFile } from '../hooks/useDeleteFile'
 import { useFileTree } from '../hooks/useFileTree'
 import { useMoveFile } from '../hooks/useMoveFile'
 import { useRenameFile } from '../hooks/useRenameFile'
+import { fileEditorsAtom } from '../stores/fileEditorAtom'
+import type { FileEditor } from '../stores/fileEditorAtom'
 import { openFileIdAtom } from '../stores/openFileAtom'
 import type { FileNode, FileNodeType } from '../types'
 
@@ -135,6 +137,7 @@ interface FileTreeNodeProps {
   openFileId: number | null
   isViewer: boolean
   drag: DragHandlers
+  fileEditors: Map<number, FileEditor>
   onFileClick: (id: number) => void
   onCreate: (parentId: number | null, name: string, type: FileNodeType) => void
   onRename: (fileId: number, name: string) => void
@@ -147,16 +150,17 @@ function FileTreeNode({
   openFileId,
   isViewer,
   drag,
+  fileEditors,
   onFileClick,
   onCreate,
   onRename,
   onDeleteRequest,
 }: FileTreeNodeProps) {
   const [isOpen, setIsOpen] = useState(true)
-  const [isHovered, setIsHovered] = useState(false)
   const [isRenaming, setIsRenaming] = useState(false)
   const [creatingType, setCreatingType] = useState<FileNodeType | null>(null)
   const isFolder = node.type === 'FOLDER'
+  const activeEditor = isFolder ? undefined : fileEditors.get(node.id)
 
   const ext = node.name.split('.').pop()
   const fileStrokeColor =
@@ -208,8 +212,6 @@ function FileTreeNode({
           }`}
           style={{ paddingLeft: `${8 + depth * 12}px` }}
           onClick={handleRowClick}
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
           onDragStart={(e) => {
             e.stopPropagation()
             drag.onDragStart(node.id)
@@ -267,10 +269,21 @@ function FileTreeNode({
 
           <span className="flex-1 truncate">{node.name}</span>
 
+          {/* 편집 중인 사용자 배지 */}
+          {activeEditor && (
+            <span
+              title={`${activeEditor.actorName}님이 편집 중`}
+              className="shrink-0 mr-1 flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-accent/15 text-accent/80 border border-accent/20"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse inline-block" />
+              {activeEditor.actorName.slice(0, 3)}
+            </span>
+          )}
+
           {/* 호버 액션 버튼 (VIEWER 제외) */}
-          {isHovered && !isViewer && (
+          {!isViewer && (
             <div
-              className="flex items-center gap-0.5 pr-1 shrink-0"
+              className="flex items-center gap-0.5 pr-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
               onClick={(e) => e.stopPropagation()}
             >
               {isFolder && (
@@ -372,6 +385,7 @@ function FileTreeNode({
               openFileId={openFileId}
               isViewer={isViewer}
               drag={drag}
+              fileEditors={fileEditors}
               onFileClick={onFileClick}
               onCreate={onCreate}
               onRename={onRename}
@@ -398,6 +412,7 @@ export default function FileTreePanel() {
   const { projectId = '' } = useParams<{ projectId: string }>()
   const { data: tree, isLoading, isError } = useFileTree(projectId)
   const [openFileId, setOpenFileId] = useAtom(openFileIdAtom)
+  const fileEditors = useAtomValue(fileEditorsAtom)
   const isViewer = useIsViewer()
 
   const { mutate: create } = useCreateFile(projectId)
@@ -538,6 +553,7 @@ export default function FileTreePanel() {
               openFileId={openFileId}
               isViewer={isViewer}
               drag={dragHandlers}
+              fileEditors={fileEditors}
               onFileClick={setOpenFileId}
               onCreate={handleCreate}
               onRename={handleRename}

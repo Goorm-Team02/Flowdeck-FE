@@ -12,10 +12,16 @@ import { useMembers } from '../hooks/useMembers'
 import { useRemoveMember } from '../hooks/useRemoveMember'
 import { useUpdateMemberRole } from '../hooks/useUpdateMemberRole'
 import { memberModalOpenAtom } from '../stores/memberModalAtom'
-import type { Member, MemberRole } from '../types'
+import type { MemberRole } from '../types'
+
+type ConfirmState =
+  | { type: 'role'; memberId: number; newRole: MemberRole }
+  | { type: 'remove'; memberId: number }
+  | { type: 'leave' }
+  | null
 
 // 현재 사용자 ID — 추후 auth 연동 시 실제 값으로 교체
-const useCurrentUserId = () => null as string | null
+const useCurrentUserId = () => 'user-001' as string | null
 
 const AVATAR_COLORS = [
   'bg-teal-500',
@@ -99,8 +105,6 @@ function resolveLeaveError(error: unknown): string {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-type PendingRoleChange = { memberId: number; newRole: MemberRole }
-
 export default function MemberModal() {
   const { projectId = '' } = useParams<{ projectId: string }>()
   const [isOpen, setIsOpen] = useAtom(memberModalOpenAtom)
@@ -117,18 +121,10 @@ export default function MemberModal() {
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<'EDITOR' | 'VIEWER'>('EDITOR')
   const [emailError, setEmailError] = useState('')
-  const [inviteSuccess, setInviteSuccess] = useState(false)
 
-  const [pendingChange, setPendingChange] = useState<PendingRoleChange | null>(null)
-  const [roleChangeError, setRoleChangeError] = useState('')
+  const [confirm, setConfirm] = useState<ConfirmState>(null)
+  const [confirmError, setConfirmError] = useState('')
 
-  const [pendingRemove, setPendingRemove] = useState<number | null>(null)
-  const [removeError, setRemoveError] = useState('')
-
-  const [confirmLeave, setConfirmLeave] = useState(false)
-  const [leaveError, setLeaveError] = useState('')
-
-  const ownerCount = members.filter((m) => m.role === 'OWNER').length
   const canLeave = !isLastOwner(members, currentUserId)
 
   useEffect(() => {
@@ -149,80 +145,37 @@ export default function MemberModal() {
       return
     }
     setEmailError('')
-    setInviteSuccess(false)
-    inviteMutation.mutate(
-      { email, role: inviteRole },
-      {
-        onSuccess: () => {
-          setInviteEmail('')
-          setInviteSuccess(true)
-        },
-        onError: () => setInviteSuccess(false),
-      },
-    )
+    inviteMutation.mutate({ email, role: inviteRole }, { onSuccess: () => setInviteEmail('') })
   }
 
-  function handleRoleSelectChange(member: Member, newRole: MemberRole) {
-    if (newRole === member.role) return
-    setPendingChange({ memberId: member.memberId, newRole })
-    setPendingRemove(null)
-    setRoleChangeError('')
+  function openConfirm(next: ConfirmState) {
+    setConfirm(next)
+    setConfirmError('')
     updateRoleMutation.reset()
-  }
-
-  function confirmRoleChange() {
-    if (!pendingChange) return
-    updateRoleMutation.mutate(
-      { memberId: pendingChange.memberId, role: pendingChange.newRole },
-      {
-        onSuccess: () => setPendingChange(null),
-        onError: (err) => setRoleChangeError(resolveRoleError(err)),
-      },
-    )
-  }
-
-  function cancelRoleChange() {
-    setPendingChange(null)
-    setRoleChangeError('')
-    updateRoleMutation.reset()
-  }
-
-  function getSelectValue(member: Member): MemberRole {
-    if (pendingChange?.memberId === member.memberId) return pendingChange.newRole
-    return member.role
-  }
-
-  function handleRemoveClick(memberId: number) {
-    setPendingRemove(memberId)
-    setPendingChange(null)
-    setRemoveError('')
     removeMutation.reset()
-  }
-
-  function confirmRemove() {
-    if (pendingRemove === null) return
-    removeMutation.mutate(pendingRemove, {
-      onSuccess: () => setPendingRemove(null),
-      onError: (err) => setRemoveError(resolveRemoveError(err)),
-    })
-  }
-
-  function cancelRemove() {
-    setPendingRemove(null)
-    setRemoveError('')
-    removeMutation.reset()
-  }
-
-  function handleLeaveClick() {
-    setConfirmLeave(true)
-    setLeaveError('')
     leaveMutation.reset()
   }
 
-  function confirmLeaveProject() {
-    leaveMutation.mutate(undefined, {
-      onError: (err) => setLeaveError(resolveLeaveError(err)),
-    })
+  function handleConfirm() {
+    if (!confirm) return
+    if (confirm.type === 'role') {
+      updateRoleMutation.mutate(
+        { memberId: confirm.memberId, role: confirm.newRole },
+        {
+          onSuccess: () => setConfirm(null),
+          onError: (err) => setConfirmError(resolveRoleError(err)),
+        },
+      )
+    } else if (confirm.type === 'remove') {
+      removeMutation.mutate(confirm.memberId, {
+        onSuccess: () => setConfirm(null),
+        onError: (err) => setConfirmError(resolveRemoveError(err)),
+      })
+    } else {
+      leaveMutation.mutate(undefined, {
+        onError: (err) => setConfirmError(resolveLeaveError(err)),
+      })
+    }
   }
 
   return (
@@ -267,7 +220,6 @@ export default function MemberModal() {
                 onChange={(e) => {
                   setInviteEmail(e.target.value)
                   setEmailError('')
-                  setInviteSuccess(false)
                   inviteMutation.reset()
                 }}
                 onKeyDown={(e) => {
@@ -312,7 +264,7 @@ export default function MemberModal() {
                 {resolveInviteError(inviteMutation.error)}
               </p>
             )}
-            {inviteSuccess && (
+            {!emailError && inviteMutation.isSuccess && (
               <p className="mt-2 text-[12px] text-green-400">멤버를 초대했습니다.</p>
             )}
           </div>
@@ -345,13 +297,16 @@ export default function MemberModal() {
           {!isLoading && !isError && members.length > 0 && (
             <div className="border border-border rounded-lg overflow-hidden max-h-[320px] overflow-y-auto">
               {members.map((member, index) => {
+                const ownerCount = members.filter((m) => m.role === 'OWNER').length
                 const isLastOwnerMember = member.role === 'OWNER' && ownerCount === 1
                 const isSelf = currentUserId === member.userId
-                const hasPendingRole = pendingChange?.memberId === member.memberId
-                const hasPendingRemove = pendingRemove === member.memberId
+                const hasPendingRole =
+                  confirm?.type === 'role' && confirm.memberId === member.memberId
+                const hasPendingRemove =
+                  confirm?.type === 'remove' && confirm.memberId === member.memberId
                 const isRoleMutating = updateRoleMutation.isPending && hasPendingRole
                 const isRemoveMutating = removeMutation.isPending && hasPendingRemove
-                const isAnyPending = pendingChange !== null || pendingRemove !== null
+                const isAnyPending = confirm !== null
 
                 return (
                   <div key={member.memberId}>
@@ -387,10 +342,16 @@ export default function MemberModal() {
                       {isOwner ? (
                         <div className="relative shrink-0">
                           <select
-                            value={getSelectValue(member)}
-                            onChange={(e) =>
-                              handleRoleSelectChange(member, e.target.value as MemberRole)
+                            value={
+                              hasPendingRole && confirm?.type === 'role'
+                                ? confirm.newRole
+                                : member.role
                             }
+                            onChange={(e) => {
+                              const newRole = e.target.value as MemberRole
+                              if (newRole !== member.role)
+                                openConfirm({ type: 'role', memberId: member.memberId, newRole })
+                            }}
                             disabled={isLastOwnerMember || isRoleMutating || isAnyPending}
                             title={
                               isLastOwnerMember
@@ -422,7 +383,7 @@ export default function MemberModal() {
                       {/* Remove button (OWNER only, not self) */}
                       {isOwner && !isSelf && (
                         <button
-                          onClick={() => handleRemoveClick(member.memberId)}
+                          onClick={() => openConfirm({ type: 'remove', memberId: member.memberId })}
                           disabled={isAnyPending}
                           title="멤버 제거"
                           className="shrink-0 ml-1 p-1 text-text-primary/20 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all disabled:pointer-events-none"
@@ -442,7 +403,7 @@ export default function MemberModal() {
                     </div>
 
                     {/* Role change confirm bar */}
-                    {hasPendingRole && (
+                    {hasPendingRole && confirm?.type === 'role' && (
                       <div
                         className={`px-4 py-3 bg-bg-tertiary/60 ${
                           index < members.length - 1 ? 'border-b border-border' : ''
@@ -451,27 +412,25 @@ export default function MemberModal() {
                         <p className="text-[12px] text-text-primary/70">
                           <span className="font-medium text-text-primary">{member.name}</span>의
                           권한을{' '}
-                          <span className="font-medium text-text-primary">
-                            {pendingChange.newRole}
-                          </span>
+                          <span className="font-medium text-text-primary">{confirm.newRole}</span>
                           으로 변경합니다.
                         </p>
                         <p className="text-[11px] text-amber-400/80 mt-0.5">
                           ⚠ 변경 시 해당 사용자가 강제 로그아웃됩니다.
                         </p>
-                        {roleChangeError && (
-                          <p className="text-[11px] text-red-400 mt-1">{roleChangeError}</p>
+                        {confirmError && (
+                          <p className="text-[11px] text-red-400 mt-1">{confirmError}</p>
                         )}
                         <div className="flex gap-2 mt-2.5">
                           <button
-                            onClick={cancelRoleChange}
+                            onClick={() => openConfirm(null)}
                             disabled={isRoleMutating}
                             className="px-3 py-1 text-[12px] text-text-primary/50 hover:text-text-primary border border-border rounded-md transition-colors disabled:opacity-40"
                           >
                             취소
                           </button>
                           <button
-                            onClick={confirmRoleChange}
+                            onClick={handleConfirm}
                             disabled={isRoleMutating}
                             className="px-3 py-1 text-[12px] text-white bg-accent rounded-md hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
                           >
@@ -492,19 +451,19 @@ export default function MemberModal() {
                           <span className="font-medium text-text-primary">{member.name}</span>을(를)
                           프로젝트에서 제거합니다.
                         </p>
-                        {removeError && (
-                          <p className="text-[11px] text-red-400 mt-1">{removeError}</p>
+                        {confirmError && (
+                          <p className="text-[11px] text-red-400 mt-1">{confirmError}</p>
                         )}
                         <div className="flex gap-2 mt-2.5">
                           <button
-                            onClick={cancelRemove}
+                            onClick={() => openConfirm(null)}
                             disabled={isRemoveMutating}
                             className="px-3 py-1 text-[12px] text-text-primary/50 hover:text-text-primary border border-border rounded-md transition-colors disabled:opacity-40"
                           >
                             취소
                           </button>
                           <button
-                            onClick={confirmRemove}
+                            onClick={handleConfirm}
                             disabled={isRemoveMutating}
                             className="px-3 py-1 text-[12px] text-white bg-red-500 rounded-md hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
                           >
@@ -523,24 +482,20 @@ export default function MemberModal() {
         {/* Footer */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-border">
           {/* Leave project */}
-          {confirmLeave ? (
+          {confirm?.type === 'leave' ? (
             <div className="flex-1">
               <p className="text-[12px] text-text-primary/70 mb-1">프로젝트에서 나가시겠습니까?</p>
-              {leaveError && <p className="text-[11px] text-red-400 mb-1">{leaveError}</p>}
+              {confirmError && <p className="text-[11px] text-red-400 mb-1">{confirmError}</p>}
               <div className="flex gap-2">
                 <button
-                  onClick={() => {
-                    setConfirmLeave(false)
-                    setLeaveError('')
-                    leaveMutation.reset()
-                  }}
+                  onClick={() => openConfirm(null)}
                   disabled={leaveMutation.isPending}
                   className="px-3 py-1 text-[12px] text-text-primary/50 hover:text-text-primary border border-border rounded-md transition-colors disabled:opacity-40"
                 >
                   취소
                 </button>
                 <button
-                  onClick={confirmLeaveProject}
+                  onClick={handleConfirm}
                   disabled={leaveMutation.isPending}
                   className="px-3 py-1 text-[12px] text-white bg-red-500 rounded-md hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -550,7 +505,7 @@ export default function MemberModal() {
             </div>
           ) : (
             <button
-              onClick={handleLeaveClick}
+              onClick={() => openConfirm({ type: 'leave' })}
               disabled={!canLeave}
               title={!canLeave ? '권한을 다른 멤버에게 위임 후 나갈 수 있습니다.' : undefined}
               className="text-[13px] text-red-400/70 hover:text-red-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"

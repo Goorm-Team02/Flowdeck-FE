@@ -4,12 +4,10 @@ import { useParams } from 'react-router-dom'
 import { DiffEditor } from '@monaco-editor/react'
 import { useAtomValue } from 'jotai'
 
-import { isApiError } from '@/shared/api/errors'
-
 import { useFile } from '../hooks/useFile'
 import { useFileVersion } from '../hooks/useFileVersion'
 import { useFileVersions } from '../hooks/useFileVersions'
-import { useRestoreFileVersion } from '../hooks/useRestoreFileVersion'
+import { useRestoreWithConfirm } from '../hooks/useRestoreWithConfirm'
 import { openFileIdAtom } from '../stores/openFileAtom'
 
 // VIEWER 권한 여부 — 추후 auth 연동 시 실제 권한으로 교체
@@ -57,52 +55,18 @@ export default function FileDiffViewer() {
 
   const { data: file } = useFile(projectId, fileId)
   const { data: versions = [], isLoading: versionsLoading } = useFileVersions(projectId, fileId)
-  const { mutate: restore, isPending: isRestoring } = useRestoreFileVersion(projectId)
+  const { restorePhase, isRestoring, requestRestore, cancelRestore, confirmRestore } =
+    useRestoreWithConfirm(projectId)
 
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null)
   const effectiveVersionId = selectedVersionId ?? versions.at(-1)?.id ?? null
   const selectedIdx = versions.findIndex((v) => v.id === effectiveVersionId)
   const selectedVersion = versions[selectedIdx] ?? null
 
-  const [confirmVersionId, setConfirmVersionId] = useState<number | null>(null)
-  const [restoreResult, setRestoreResult] = useState<{ ok: boolean; message: string } | null>(null)
-
-  const confirmVersion = versions.find((v) => v.id === confirmVersionId) ?? null
-
-  const handleRestoreConfirm = () => {
-    if (!fileId || !confirmVersionId) return
-    restore(
-      { fileId, versionId: confirmVersionId },
-      {
-        onSuccess: () => {
-          setConfirmVersionId(null)
-          setRestoreResult({
-            ok: true,
-            message: `v${confirmVersion?.version} 버전으로 복원됐습니다.`,
-          })
-          setTimeout(() => setRestoreResult(null), 3000)
-        },
-        onError: (error) => {
-          setConfirmVersionId(null)
-          if (isApiError(error)) {
-            if (error.status === 403) {
-              setRestoreResult({ ok: false, message: '복원 권한이 없습니다.' })
-            } else if (error.status === 409) {
-              setRestoreResult({
-                ok: false,
-                message: '다른 사용자가 먼저 파일을 수정했습니다. 잠시 후 다시 시도해주세요.',
-              })
-            } else {
-              setRestoreResult({ ok: false, message: error.message })
-            }
-          } else {
-            setRestoreResult({ ok: false, message: '복원 중 오류가 발생했습니다.' })
-          }
-          setTimeout(() => setRestoreResult(null), 4000)
-        },
-      },
-    )
-  }
+  const confirmVersion =
+    restorePhase?.phase === 'confirm'
+      ? (versions.find((v) => v.id === restorePhase.versionId) ?? null)
+      : null
 
   const { data: versionDetail, isLoading: detailLoading } = useFileVersion(
     projectId,
@@ -149,21 +113,20 @@ export default function FileDiffViewer() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-bg-primary">
       {/* 토스트 */}
-      {restoreResult && (
+      {restorePhase?.phase === 'toast' && (
         <div
           className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-lg shadow-lg text-[13px] border ${
-            restoreResult.ok
+            restorePhase.ok
               ? 'bg-bg-secondary border-green-500/40 text-green-400'
               : 'bg-bg-secondary border-red-500/40 text-red-400'
           }`}
         >
-          {restoreResult.message}
+          {restorePhase.message}
         </div>
       )}
 
       {/* 버전 탐색 바 */}
       <div className="flex items-center gap-3 px-4 py-2 border-b border-border shrink-0 bg-bg-secondary">
-        {/* 이전(더 오래된) 버전 */}
         <button
           onClick={goPrev}
           disabled={!canGoPrev}
@@ -182,7 +145,6 @@ export default function FileDiffViewer() {
           </svg>
         </button>
 
-        {/* 버전 정보 */}
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <span className="text-[12px] text-text-primary/40">비교:</span>
           <div className="flex items-center gap-1.5 px-2.5 py-1 bg-bg-tertiary border border-border/60 rounded text-[12px]">
@@ -222,22 +184,19 @@ export default function FileDiffViewer() {
           </div>
         </div>
 
-        {/* 버전 위치 */}
         <span className="text-[11px] text-text-primary/30 shrink-0">
           {versions.length - selectedIdx}번째 이전 버전
         </span>
 
-        {/* 복원 버튼 */}
         {!isViewer && effectiveVersionId && (
           <button
-            onClick={() => setConfirmVersionId(effectiveVersionId)}
+            onClick={() => requestRestore(effectiveVersionId)}
             className="px-2.5 py-1 text-[12px] rounded border border-border/60 text-text-primary/50 hover:text-text-primary/80 hover:border-border hover:bg-bg-tertiary transition-colors shrink-0"
           >
             이 버전으로 복원
           </button>
         )}
 
-        {/* 다음(더 최근) 버전 */}
         <button
           onClick={goNext}
           disabled={!canGoNext}
@@ -294,7 +253,7 @@ export default function FileDiffViewer() {
       </div>
 
       {/* 복원 확인 모달 */}
-      {confirmVersionId && confirmVersion && (
+      {restorePhase?.phase === 'confirm' && confirmVersion && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-bg-secondary border border-border rounded-xl p-6 w-96 shadow-2xl">
             <h3 className="text-[15px] font-semibold text-text-primary mb-1">버전 복원</h3>
@@ -322,13 +281,13 @@ export default function FileDiffViewer() {
             </div>
             <div className="flex gap-2 justify-end">
               <button
-                onClick={() => setConfirmVersionId(null)}
+                onClick={cancelRestore}
                 className="px-4 py-1.5 text-[13px] text-text-primary/60 hover:text-text-primary transition-colors"
               >
                 취소
               </button>
               <button
-                onClick={handleRestoreConfirm}
+                onClick={() => fileId && confirmRestore(fileId, `v${confirmVersion.version}`)}
                 disabled={isRestoring}
                 className="px-4 py-1.5 text-[13px] bg-accent text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
               >

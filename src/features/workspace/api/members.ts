@@ -45,3 +45,8 @@ export async function removeMember(projectId: string, memberId: number): Promise
 export async function leaveProject(projectId: string): Promise<void> {
   await apiClient.delete(`/api/projects/${projectId}/members/me`)
 }
+
+export async function joinProject(projectId: string): Promise<Member> {
+  const res = await apiClient.post<ApiResponse<Member>>(`/api/projects/${projectId}/members/join`)
+  return res.data.data
+}
