@@ -1,0 +1,153 @@
+{
+  "users": [
+    {
+      "email": "admin@flowdeck.io",
+      "name": "관리자",
+      "password": "password123"
+    },
+    {
+      "email": "user1@flowdeck.io",
+      "name": "개발자A",
+      "password": "password123"
+    },
+    {
+      "email": "user2@flowdeck.io",
+      "name": "개발자B",
+      "password": "password123"
+    },
+    {
+      "email": "taehee@flowdeck.io",
+      "name": "이태희",
+      "password": "password123"
+    },
+    {
+      "email": "coding@flowdeck.io",
+      "name": "김코딩",
+      "password": "password123"
+    }
+  ],
+  "projects": [
+    {
+      "id": "proj-1",
+      "title": "Flowdeck Go 백엔드 동기화",
+      "description": "WebRTC 및 WebSockets 통신을 위한 고가용성 협업 에디터 백엔드 모듈 개발 로직.",
+      "visibility": "PRIVATE",
+      "createdAt": "2026-06-01T10:48:18.501Z",
+      "updatedAt": "2026-06-01T11:48:18.540Z"
+    },
+    {
+      "id": "proj-2",
+      "title": "React 실시간 대시보드",
+      "description": "Vite와 TS 기반의 대시보드 구조 및 자원 실시간 모니터링 웹 콘솔.",
+      "visibility": "PUBLIC",
+      "createdAt": "2026-05-31T12:48:18.540Z",
+      "updatedAt": "2026-06-01T10:48:18.540Z"
+    },
+    {
+      "id": "proj-trmb75sx9",
+      "title": "1",
+      "description": "",
+      "visibility": "PRIVATE",
+      "createdAt": "2026-06-01T12:51:27.514Z",
+      "updatedAt": "2026-06-01T12:51:27.514Z"
+    },
+    {
+      "id": "proj-atbwa58wl",
+      "title": "2",
+      "description": "",
+      "visibility": "PRIVATE",
+      "createdAt": "2026-06-01T12:52:30.668Z",
+      "updatedAt": "2026-06-01T12:52:30.668Z"
+    },
+    {
+      "id": "proj-c2qhxwqql",
+      "title": "1",
+      "description": "",
+      "visibility": "PRIVATE",
+      "createdAt": "2026-06-01T12:56:55.167Z",
+      "updatedAt": "2026-06-01T12:56:55.167Z"
+    }
+  ],
+  "projectMembers": [
+    {
+      "id": "mem-1-1",
+      "projectId": "proj-1",
+      "email": "admin@flowdeck.io",
+      "name": "관리자",
+      "role": "OWNER",
+      "status": "ACCEPTED"
+    },
+    {
+      "id": "mem-1-2",
+      "projectId": "proj-1",
+      "email": "taehee@flowdeck.io",
+      "name": "이태희",
+      "role": "EDITOR",
+      "status": "ACCEPTED"
+    },
+    {
+      "id": "mem-2-1",
+      "projectId": "proj-2",
+      "email": "coding@flowdeck.io",
+      "name": "김코딩",
+      "role": "OWNER",
+      "status": "ACCEPTED"
+    },
+    {
+      "id": "mem-2-2",
+      "projectId": "proj-2",
+      "email": "user1@flowdeck.io",
+      "name": "개발자A",
+      "role": "EDITOR",
+      "status": "PENDING"
+    },
+    {
+      "id": "mem-2-3",
+      "projectId": "proj-2",
+      "email": "user2@flowdeck.io",
+      "name": "개발자B",
+      "role": "EDITOR",
+      "status": "ACCEPTED"
+    },
+    {
+      "id": "mem-proj-trmb75sx9-owner",
+      "projectId": "proj-trmb75sx9",
+      "email": "taehee@flowdeck.io",
+      "name": "이태희",
+      "role": "OWNER",
+      "status": "ACCEPTED"
+    },
+    {
+      "id": "mem-proj-atbwa58wl-owner",
+      "projectId": "proj-atbwa58wl",
+      "email": "taehee@flowdeck.io",
+      "name": "이태희",
+      "role": "OWNER",
+      "status": "ACCEPTED"
+    },
+    {
+      "id": "mem-proj-atbwa58wl-invite-0-1780318350668",
+      "projectId": "proj-atbwa58wl",
+      "email": "user2@flowdeck.io",
+      "name": "개발자B",
+      "role": "EDITOR",
+      "status": "PENDING"
+    },
+    {
+      "id": "mem-proj-c2qhxwqql-owner",
+      "projectId": "proj-c2qhxwqql",
+      "email": "user2@flowdeck.io",
+      "name": "개발자B",
+      "role": "OWNER",
+      "status": "ACCEPTED"
+    },
+    {
+      "id": "mem-proj-c2qhxwqql-invite-0-1780318615167",
+      "projectId": "proj-c2qhxwqql",
+      "email": "user1@flowdeck.io",
+      "name": "개발자A",
+      "role": "EDITOR",
+      "status": "PENDING"
+    }
+  ]
+}

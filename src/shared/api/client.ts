@@ -1,11 +1,10 @@
+// src/shared/api/client.ts
 import axios from 'axios'
 import type { AxiosError, InternalAxiosRequestConfig } from 'axios'
-
 import type { ApiResponse } from '@/shared/types/api'
-
 import { ApiError, NetworkError, UnauthorizedError } from './errors'
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 
 export const apiClient = axios.create({
   baseURL: BASE_URL,
@@ -13,10 +12,9 @@ export const apiClient = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
-// ─── Token helpers ────────────────────────────────────────────────────────────
-
-const TOKEN_KEY = 'accessToken'
-const REFRESH_KEY = 'refreshToken'
+// --- [인증 총괄 규격화] 질문자님이 설계하신 토큰 표준 키로 스토리지를 단일화합니다. ---
+const TOKEN_KEY = 'flowdeck_access_token'
+const REFRESH_KEY = 'flowdeck_refresh_token'
 
 export const tokenStorage = {
   getAccess: () => localStorage.getItem(TOKEN_KEY),
@@ -32,8 +30,6 @@ export const tokenStorage = {
   },
 }
 
-// ─── Refresh queue (prevents parallel refresh races) ─────────────────────────
-
 let isRefreshing = false
 let waitQueue: Array<(token: string) => void> = []
 
@@ -42,10 +38,6 @@ function drainQueue(token: string) {
   waitQueue = []
 }
 
-// ─── Forced logout ────────────────────────────────────────────────────────────
-
-// Full page reload clears all in-memory state (React Query cache, etc.).
-// /login route is pending auth implementation — currently resolves to NotFoundPage.
 export function forcedLogout(reason?: string) {
   tokenStorage.clear()
   waitQueue = []
@@ -66,8 +58,7 @@ async function refreshAccessToken(): Promise<string> {
   return newToken
 }
 
-// ─── Request interceptor ─────────────────────────────────────────────────────
-
+// Request interceptor
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = tokenStorage.getAccess()
   if (token) {
@@ -76,8 +67,7 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config
 })
 
-// ─── Response interceptor ────────────────────────────────────────────────────
-
+// Response interceptor
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError<ApiResponse>) => {
@@ -89,7 +79,8 @@ apiClient.interceptors.response.use(
 
     const { status, data } = error.response
 
-    if (status === 401 && !originalRequest._retry) {
+    // 로그인 API 자체에 대한 401 응답은 리프레시 루프를 돌지 않도록 방어합니다.
+    if (status === 401 && !originalRequest._retry && originalRequest.url !== '/api/auth/login') {
       if (isRefreshing) {
         return new Promise((resolve) => {
           waitQueue.push((token) => {

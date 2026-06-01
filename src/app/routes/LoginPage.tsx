@@ -1,88 +1,93 @@
-import { type FormEvent, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
-
-import { login } from '@/features/auth/api/auth'
-import { tokenStorage } from '@/shared/api/client'
+// src/app/routes/LoginPage.tsx
+import { useState, FormEvent } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { useAuthStore } from "@/features/auth/authStore";
+import { authService } from "@/features/auth/api/customApi";
 
 export default function LoginPage() {
-  const [searchParams] = useSearchParams()
-  const navigate = useNavigate()
-  const redirect = searchParams.get('redirect') ?? '/'
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const navigate = useNavigate();
+  const { login } = useAuthStore();
 
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const handleLogin = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsLoading(true);
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setError(null)
     try {
-      const { accessToken, refreshToken } = await login(email, password)
-      tokenStorage.setTokens(accessToken, refreshToken)
-      navigate(redirect, { replace: true })
-    } catch {
-      setError('이메일 또는 비밀번호가 올바르지 않습니다.')
+      const res = await authService.login({ email, password });
+      login(res.user);
+      navigate("/");
+    } catch (err: any) {
+      console.error("Login error:", err);
+      setError(err.message || "로그인에 실패하였습니다. 이메일과 패스워드를 다시 확인해주세요.");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="h-screen flex items-center justify-center bg-bg-primary">
-      <div className="w-full max-w-sm px-4">
+    <div id="login_page_container" className="flex min-h-screen items-center justify-center bg-zinc-950 font-sans p-4">
+      <div id="login_card" className="w-full max-w-md rounded-xl bg-zinc-900 p-8 shadow-2xl border border-zinc-800">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-text-primary">Flowdeck</h1>
-          <p className="mt-1 text-[13px] text-text-primary/50">로그인하여 계속하세요</p>
+          <div className="mx-auto mb-4 w-12 h-12 bg-indigo-600 rounded-lg flex items-center justify-center font-bold text-white text-2xl shadow-lg shadow-indigo-600/20">F</div>
+          <h1 className="text-3xl font-bold text-white tracking-tight">Flowdeck 로그인</h1>
+          <p className="mt-2 text-zinc-400 text-sm tracking-wide">실시간 협업 웹 개발 IDE 플랫폼에 로그인하세요</p>
         </div>
+        
+        {error && (
+          <div id="login_error" className="mb-6 p-4 rounded-md bg-red-950/40 border border-red-900/50 text-red-400 text-xs font-semibold">
+            {error}
+          </div>
+        )}
 
-        <form
-          onSubmit={handleSubmit}
-          className="bg-bg-secondary border border-border rounded-xl p-6 flex flex-col gap-4"
-        >
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="email" className="text-[13px] text-text-primary/70">
-              이메일
-            </label>
-            <input
-              id="email"
-              type="email"
+        <form onSubmit={handleLogin} className="space-y-6">
+          <div>
+            <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">이메일 주소</label>
+            <input 
+              id="login_email_input"
+              type="email" 
+              required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              required
-              autoFocus
-              className="px-3 py-2 text-[13px] rounded-lg border border-border bg-bg-primary text-text-primary placeholder:text-text-primary/30 outline-none focus:border-accent transition-colors"
-              placeholder="you@example.com"
+              className="w-full rounded-md bg-zinc-950 border border-zinc-800 p-3 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all placeholder:text-zinc-600"
+              placeholder="name@company.com" 
             />
           </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="password" className="text-[13px] text-text-primary/70">
-              비밀번호
-            </label>
-            <input
-              id="password"
-              type="password"
+          <div>
+            <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">비밀번호</label>
+            <input 
+              id="login_password_input"
+              type="password" 
+              required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              required
-              className="px-3 py-2 text-[13px] rounded-lg border border-border bg-bg-primary text-text-primary placeholder:text-text-primary/30 outline-none focus:border-accent transition-colors"
-              placeholder="••••••••"
+              className="w-full rounded-md bg-zinc-950 border border-zinc-800 p-3 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all placeholder:text-zinc-600"
+              placeholder="••••••••" 
             />
           </div>
 
-          {error && <p className="text-[12px] text-red-400">{error}</p>}
-
-          <button
+          <button 
+            id="login_submit_btn"
             type="submit"
             disabled={isLoading}
-            className="mt-1 py-2 text-[13px] font-medium bg-accent text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full rounded-md bg-indigo-600 p-3.5 font-bold text-white hover:bg-indigo-500 transition-all shadow-lg active:scale-95 transform disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
-            {isLoading ? '로그인 중...' : '로그인'}
+            {isLoading ? "로그인 처리 중..." : "로그인"}
           </button>
         </form>
+
+        <p className="mt-8 text-center text-sm text-zinc-400">
+          Flowdeck이 처음이신가요? 
+          <Link to="/signup" className="text-indigo-400 hover:text-indigo-300 font-bold transition-colors ml-1">
+            새 계정 만들기
+          </Link>
+        </p>
       </div>
     </div>
-  )
+  );
 }
