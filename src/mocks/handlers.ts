@@ -1,3 +1,4 @@
+// src/mocks/handlers.ts
 import { HttpResponse, http } from 'msw'
 
 import type {
@@ -15,6 +16,26 @@ const BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
 const PROJECT_ID = '1'
 const FILE_ID = 10
 
+// --- [추가] 가상 세션: 현재 로그인한 이메일을 동적으로 기억합니다 ---
+let currentUserEmail = 'admin@flowdeck.io'
+
+const mockUsers = [
+  { email: 'admin@flowdeck.io', name: '시스템 관리자' },
+  { email: 'minkyoung@example.com', name: '김민경' },
+  { email: 'jihoon@example.com', name: '이지훈' },
+  { email: 'jihoon.park@example.com', name: '박지훈' },
+]
+
+const mockProjects = [
+  {
+    id: '1',
+    title: 'API-Gateway-Refactor',
+    description: '성공적으로 창포된 최적화된 협업 디렉토리 프로젝트입니다.',
+    visibility: 'PRIVATE' as 'PRIVATE' | 'PUBLIC',
+  }
+]
+
+// --- 기존 상대방 Mock 데이터 유지 ---
 const mockFileTree: FileNode[] = [
   {
     id: 1,
@@ -255,24 +276,145 @@ function ok<T>(data: T): HttpResponse<ApiResponse<T>> {
 }
 
 export const handlers = [
-  // Login
+  // --- [인프라] 활성 가상 유저 가동 (로그인 안내용) ---
+  http.get(`${BASE}/api/auth/users`, () => {
+    return HttpResponse.json(mockUsers)
+  }),
+
+  // --- [인증] 회원가입 ---
+  http.post(`${BASE}/api/auth/signup`, async ({ request }) => {
+    const body = (await request.json()) as { email: string; name: string }
+    const exists = mockUsers.some(u => u.email === body.email)
+    if (exists) {
+      return HttpResponse.json(
+        { message: '이미 가입된 이메일 주소입니다.' },
+        { status: 400 }
+      )
+    }
+    const newUser = { email: body.email, name: body.name }
+    mockUsers.push(newUser)
+    return HttpResponse.json({
+      message: '회원 가입 완료',
+      user: newUser
+    })
+  }),
+
+  // --- [인증] 로그인 (현재 로그인 시도한 이메일을 세션에 실시간 주입) ---
   http.post(`${BASE}/api/auth/login`, async ({ request }) => {
-    const body = (await request.json()) as { email: string; password: string }
-    if (!body.email || !body.password) {
+    const body = (await request.json()) as { email: string; password?: string }
+    if (!body.email) {
       return HttpResponse.json(
         {
           success: false,
           code: 'INVALID_CREDENTIALS',
-          message: '이메일 또는 비밀번호가 올바르지 않습니다.',
+          message: '이메일을 다시 확인해 주세요.',
           data: null,
         },
-        { status: 401 },
+        { status: 400 },
       )
     }
-    return ok({ accessToken: 'mock-access-token', refreshToken: 'mock-refresh-token' })
+
+    // [중요] 세션 기록 갱신
+    currentUserEmail = body.email.toLowerCase();
+
+    const matchedUser = mockUsers.find(u => u.email.toLowerCase() === body.email.toLowerCase()) || {
+      email: body.email,
+      name: body.email.split('@')[0]
+    }
+
+    const payload = {
+      accessToken: 'mock-access-token',
+      refreshToken: 'mock-refresh-token',
+      message: '성공적으로 인증되었습니다.',
+      user: matchedUser
+    }
+
+    const envelope: ApiResponse<typeof payload> = {
+      success: true,
+      code: 'SUCCESS',
+      message: '성공적으로 로그인되었습니다.',
+      data: payload
+    }
+
+    return HttpResponse.json({
+      ...envelope,
+      ...payload
+    })
   }),
 
-  // Join project via invite link
+  // --- [인증] 내 세션 조회 (현재 로그인된 정보를 바탕으로 응답) ---
+  http.get(`${BASE}/api/auth/me`, () => {
+    const matchedUser = mockUsers.find(u => u.email.toLowerCase() === currentUserEmail.toLowerCase()) || {
+      email: currentUserEmail,
+      name: currentUserEmail.split('@')[0]
+    }
+    return HttpResponse.json(matchedUser)
+  }),
+
+  // --- [인증] 프로필 이름 변경 ---
+  http.put(`${BASE}/api/auth/profile`, async ({ request }) => {
+    const body = (await request.json()) as { name: string }
+    const idx = mockUsers.findIndex(u => u.email.toLowerCase() === currentUserEmail.toLowerCase())
+    if (idx !== -1) {
+      mockUsers[idx].name = body.name
+    }
+    return HttpResponse.json({ message: '성공적으로 수정 완료', name: body.name })
+  }),
+
+  // --- [인증] 회원 탈퇴 ---
+  http.delete(`${BASE}/api/auth/profile`, () => {
+    return HttpResponse.json({ message: '회원 정보가 영구적으로 파기되었습니다.' })
+  }),
+
+  // --- [대시보드] 내 프로젝트 목록 조회 ---
+  http.get(`${BASE}/api/projects`, () => {
+    return HttpResponse.json(mockProjects)
+  }),
+
+  // --- [대시보드] 새 프로젝트 추가 생성 ---
+  http.post(`${BASE}/api/projects`, async ({ request }) => {
+    const body = (await request.json()) as { title: string; visibility: 'PRIVATE' | 'PUBLIC'; description?: string }
+    const newProject = {
+      id: String(mockProjects.length + 100),
+      title: body.title,
+      description: body.description || '',
+      visibility: body.visibility,
+    }
+    mockProjects.push(newProject)
+    return HttpResponse.json(newProject)
+  }),
+
+  // --- [대시보드] 프로젝트 디렉토리 정보 수정 ---
+  http.put(`${BASE}/api/projects/:projectId`, async ({ params, request }) => {
+    const id = params.projectId as string
+    const body = (await request.json()) as { title?: string; description?: string; visibility?: 'PRIVATE' | 'PUBLIC' }
+    const idx = mockProjects.findIndex(p => p.id === id)
+    if (idx !== -1) {
+      mockProjects[idx] = {
+        ...mockProjects[idx],
+        ...body
+      }
+      return HttpResponse.json(mockProjects[idx])
+    }
+    return HttpResponse.json({ message: '프로젝트를 찾을 수 없습니다.' }, { status: 404 })
+  }),
+
+  // --- [대시보드] 프로젝트 완전 파기 ---
+  http.delete(`${BASE}/api/projects/:projectId`, ({ params }) => {
+    const id = params.projectId as string
+    const idx = mockProjects.findIndex(p => p.id === id)
+    if (idx !== -1) {
+      mockProjects.splice(idx, 1)
+    }
+    return HttpResponse.json({ message: '프로젝트 파괴 성공' })
+  }),
+
+  // --- [대시보드] 협업 초대 응답 처리 ---
+  http.post(`${BASE}/api/projects/:projectId/respond`, () => {
+    return HttpResponse.json({ message: '승인 처리가 수락되었습니다.' })
+  }),
+
+  // --- [보완 완료] 멤버 가입 (새 가상 프로젝트 ID도 통과 허용) ---
   http.post(`${BASE}/api/projects/:projectId/members/join`, ({ params }) => {
     const newMember: Member = {
       memberId: mockMembers.length + 20,
@@ -282,7 +424,9 @@ export const handlers = [
       role: 'VIEWER',
       joinedAt: new Date().toISOString(),
     }
-    if (params.projectId !== PROJECT_ID) {
+    
+    const exists = mockProjects.some(p => p.id === params.projectId)
+    if (!exists && params.projectId !== PROJECT_ID) {
       return HttpResponse.json(
         { success: false, code: 'NOT_FOUND', message: 'Project not found', data: null },
         { status: 404 },
@@ -292,29 +436,63 @@ export const handlers = [
     return ok(newMember)
   }),
 
-  // File tree
+  // --- [보완 완료] 파일 트리 조회 ---
   http.get(`${BASE}/api/projects/:projectId/files`, ({ params }) => {
-    if (params.projectId !== PROJECT_ID)
+    const projId = params.projectId as string
+
+    if (projId === PROJECT_ID) {
+      return ok(mockFileTree)
+    }
+
+    const exists = mockProjects.some(p => p.id === projId)
+    if (!exists) {
       return HttpResponse.json(
         { success: false, code: 'NOT_FOUND', message: 'Project not found', data: null },
         { status: 404 },
       )
-    return ok(mockFileTree)
+    }
+
+    const defaultId = Number(projId) * 1000 + 1
+    const newProjectFileTree: FileNode[] = [
+      {
+        id: defaultId,
+        name: 'README.md',
+        type: 'FILE',
+        parentId: null,
+        editRevision: 1,
+        currentVersion: 1,
+      }
+    ]
+    return ok(newProjectFileTree)
   }),
 
-  // File detail (must come before move/rename PATCH)
+  // --- [보완 완료] 파일 상세조회 ---
   http.get(`${BASE}/api/projects/:projectId/files/:fileId`, ({ params }) => {
     const id = Number(params.fileId)
-    const file = mockFiles[id]
-    if (!file)
+    let file = mockFiles[id]
+
+    if (!file && id > 1000) {
+      file = {
+        id,
+        name: 'README.md',
+        type: 'FILE',
+        parentId: null,
+        editRevision: 1,
+        currentVersion: 1,
+        content: `# Welcome to Flowdeck!\n\n성공적으로 생성된 새로운 작업 공간입니다. 코드를 수정하고 실시간 동화를 시작하세요.`
+      }
+      mockFiles[id] = file
+    }
+
+    if (!file) {
       return HttpResponse.json(
         { success: false, code: 'NOT_FOUND', message: 'File not found', data: null },
         { status: 404 },
       )
+    }
     return ok(file)
   }),
 
-  // Save file
   http.put(`${BASE}/api/projects/:projectId/files/:fileId`, async ({ params, request }) => {
     const id = Number(params.fileId)
     const file = mockFiles[id]
@@ -328,19 +506,16 @@ export const handlers = [
     return ok(mockFiles[id])
   }),
 
-  // Version list
   http.get(`${BASE}/api/projects/:projectId/files/:fileId/versions`, ({ params }) => {
     if (Number(params.fileId) !== FILE_ID) return ok([])
     return ok(mockVersions)
   }),
 
-  // Timeline (must come before detail because "timeline" would match :versionId)
   http.get(`${BASE}/api/projects/:projectId/files/:fileId/versions/timeline`, ({ params }) => {
     if (Number(params.fileId) !== FILE_ID) return ok([])
     return ok(mockTimeline)
   }),
 
-  // Version detail
   http.get(`${BASE}/api/projects/:projectId/files/:fileId/versions/:versionId`, ({ params }) => {
     const versionId = Number(params.versionId)
     const version = mockVersions.find((v) => v.id === versionId)
@@ -353,17 +528,37 @@ export const handlers = [
     return ok(detail)
   }),
 
-  // Members list
+  // --- [보완 완료] 멤버 목록 조회 (현재 로그인한 사용자를 OWNER로 설정하여 화면 표시 누락 우려 차단) ---
   http.get(`${BASE}/api/projects/:projectId/members`, ({ params }) => {
-    if (params.projectId !== PROJECT_ID)
+    const projId = params.projectId as string
+
+    if (projId === PROJECT_ID) {
+      return ok({ members: mockMembers })
+    }
+
+    const exists = mockProjects.some(p => p.id === projId)
+    if (!exists) {
       return HttpResponse.json(
         { success: false, code: 'NOT_FOUND', message: 'Project not found', data: null },
         { status: 404 },
       )
-    return ok({ members: mockMembers })
+    }
+
+    // 세션 상의 로그인 유저 정보를 동적으로 반영하여 소유권을 가집니다.
+    const currentUserName = currentUserEmail.split('@')[0];
+    const newProjectMembers: Member[] = [
+      {
+        memberId: 99,
+        userId: `user-${currentUserName}`,
+        email: currentUserEmail,
+        name: currentUserName,
+        role: 'OWNER',
+        joinedAt: new Date().toISOString(),
+      }
+    ]
+    return ok({ members: newProjectMembers })
   }),
 
-  // Invite member
   http.post(`${BASE}/api/projects/:projectId/members`, async ({ request }) => {
     const body = (await request.json()) as { email: string; role: 'EDITOR' | 'VIEWER' }
     const { email, role } = body
@@ -379,7 +574,6 @@ export const handlers = [
         { status: 409 },
       )
 
-    // 존재하지 않는 이메일 시뮬레이션 — "unknown@" 도메인으로 테스트
     if (email.startsWith('unknown@'))
       return HttpResponse.json(
         {
@@ -403,7 +597,6 @@ export const handlers = [
     return ok(newMember)
   }),
 
-  // Update member role
   http.patch(`${BASE}/api/projects/:projectId/members/:memberId`, async ({ params, request }) => {
     const memberId = Number(params.memberId)
     const idx = mockMembers.findIndex((m) => m.memberId === memberId)
@@ -417,7 +610,6 @@ export const handlers = [
     const target = mockMembers[idx]
     const body = (await request.json()) as { role: string }
 
-    // 마지막 OWNER 보호
     if (target.role === 'OWNER' && owners.length === 1 && body.role !== 'OWNER')
       return HttpResponse.json(
         {
@@ -433,12 +625,10 @@ export const handlers = [
     return ok(mockMembers[idx])
   }),
 
-  // Leave project (me — must come before :memberId to avoid path conflict)
   http.delete(`${BASE}/api/projects/:projectId/members/me`, () => {
     return ok({})
   }),
 
-  // Remove member
   http.delete(`${BASE}/api/projects/:projectId/members/:memberId`, ({ params }) => {
     const memberId = Number(params.memberId)
     const idx = mockMembers.findIndex((m) => m.memberId === memberId)
@@ -465,17 +655,25 @@ export const handlers = [
     return ok({})
   }),
 
-  // Messages
+  // --- [보완 완료] 채팅 메시지 목록 ---
   http.get(`${BASE}/api/projects/:projectId/messages`, ({ params }) => {
-    if (params.projectId !== PROJECT_ID)
+    const projId = params.projectId as string
+
+    if (projId === PROJECT_ID) {
+      return ok({ messages: mockMessages })
+    }
+
+    const exists = mockProjects.some(p => p.id === projId)
+    if (!exists) {
       return HttpResponse.json(
         { success: false, code: 'NOT_FOUND', message: 'Project not found', data: null },
         { status: 404 },
       )
-    return ok({ messages: mockMessages })
+    }
+
+    return ok({ messages: [] })
   }),
 
-  // Search messages (must come before delete to avoid :messageId matching "search")
   http.get(`${BASE}/api/projects/:projectId/messages/search`, ({ request }) => {
     const url = new URL(request.url)
     const keyword = url.searchParams.get('keyword') ?? ''
@@ -485,7 +683,6 @@ export const handlers = [
     return ok({ messages: results })
   }),
 
-  // Delete message
   http.delete(`${BASE}/api/projects/:projectId/messages/:messageId`, ({ params }) => {
     const messageId = Number(params.messageId)
     const idx = mockMessages.findIndex((m) => m.id === messageId)
@@ -498,7 +695,6 @@ export const handlers = [
     return ok({})
   }),
 
-  // Create version
   http.post(`${BASE}/api/projects/:projectId/files/:fileId/versions`, ({ params }) => {
     const fileId = Number(params.fileId)
     const lastVersion = mockVersions.at(-1)?.version ?? 0

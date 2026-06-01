@@ -1,5 +1,8 @@
-@import 'tailwindcss';
+/* 1. 모든 @import 문을 파일 최상단에 모아둡니다 */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
 
+/* 2. 테마 설정은 @import 설정이 끝난 뒤에 작성합니다 */
 @theme {
   /* 기본 배경 */
   --color-bg-primary: #1e1e1e;
@@ -37,4 +40,14 @@
   --color-token-string: #ce9178;
   --color-token-function: #dcdcaa;
   --color-token-type: #4ec9b0;
+
+  /* 폰트 설정 추가 */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* 3. 일반 CSS 스타일 선언은 가장 마지막에 위치합니다 */
+body {
+  background-color: #09090b; /* zinc-950 */
+  color: #f4f4f5; /* zinc-100 */
 }

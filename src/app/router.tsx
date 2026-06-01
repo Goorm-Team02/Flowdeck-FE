@@ -1,31 +1,32 @@
 // src/app/router.tsx
-import { createBrowserRouter } from 'react-router-dom'
+import { createBrowserRouter } from "react-router-dom";
+import LoginPage from "./routes/LoginPage";
+import SignupPage from "./routes/SignupPage";
+import ProjectListPage from "./routes/ProjectListPage";
+import WorkspacePage from "./routes/WorkspacePage";
 
-import InvitePage from './routes/InvitePage'
-import LoginPage from './routes/LoginPage'
-import NotFoundPage from './routes/NotFoundPage'
-import ProjectListPage from './routes/ProjectListPage'
-import WorkspacePage from './routes/WorkspacePage'
+import NotFoundPage from "./routes/NotFoundPage";
 
 export const router = createBrowserRouter([
   {
-    path: '/',
-    element: <ProjectListPage />,
-  },
-  {
-    path: '/login',
+    path: "/login",
     element: <LoginPage />,
   },
   {
-    path: '/invite/:projectId',
-    element: <InvitePage />,
+    path: "/signup",
+    element: <SignupPage />,
   },
   {
-    path: '/projects/:projectId',
+    path: "/",
+    element: <ProjectListPage />,
+  },
+  {
+    path: "/projects/:projectId",
     element: <WorkspacePage />,
   },
+  
   {
-    path: '*',
+    path: "*",
     element: <NotFoundPage />,
   },
-])
+]);
