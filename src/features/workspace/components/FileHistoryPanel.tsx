@@ -3,12 +3,10 @@ import { useParams } from 'react-router-dom'
 
 import { useAtomValue } from 'jotai'
 
-import { isApiError } from '@/shared/api/errors'
-
 import { useFileVersion } from '../hooks/useFileVersion'
 import { useFileVersionDiff } from '../hooks/useFileVersionDiff'
 import { useFileVersions } from '../hooks/useFileVersions'
-import { useRestoreFileVersion } from '../hooks/useRestoreFileVersion'
+import { useRestoreWithConfirm } from '../hooks/useRestoreWithConfirm'
 import { openFileIdAtom } from '../stores/openFileAtom'
 
 // VIEWER 권한 여부 — 추후 auth 연동 시 실제 권한으로 교체
@@ -46,13 +44,11 @@ export default function FileHistoryPanel() {
     isLoading: versionsLoading,
     isError: versionsError,
   } = useFileVersions(projectId, fileId)
-  const { mutate: restore, isPending: isRestoring } = useRestoreFileVersion(projectId)
+  const { restorePhase, isRestoring, requestRestore, cancelRestore, confirmRestore } =
+    useRestoreWithConfirm(projectId)
 
   const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null)
-  const [confirmVersionId, setConfirmVersionId] = useState<number | null>(null)
-  const [restoreResult, setRestoreResult] = useState<{ ok: boolean; message: string } | null>(null)
 
-  // 목록이 로드되면 최신 버전을 기본 선택
   const effectiveId = selectedVersionId ?? versions.at(-1)?.id ?? null
   const selectedIdx = versions.findIndex((v) => v.id === effectiveId)
   const selectedVersion = versions[selectedIdx] ?? null
@@ -70,42 +66,10 @@ export default function FileHistoryPanel() {
   const removedCount = diff?.lines.filter((l) => l.type === 'REMOVED').length ?? 0
 
   const total = versions.length
-  const confirmVersion = versions.find((v) => v.id === confirmVersionId) ?? null
-
-  const handleRestoreConfirm = () => {
-    if (!fileId || !confirmVersionId) return
-    restore(
-      { fileId, versionId: confirmVersionId },
-      {
-        onSuccess: () => {
-          setConfirmVersionId(null)
-          setRestoreResult({
-            ok: true,
-            message: `v${confirmVersion?.version} 버전으로 복원됐습니다.`,
-          })
-          setTimeout(() => setRestoreResult(null), 3000)
-        },
-        onError: (error) => {
-          setConfirmVersionId(null)
-          if (isApiError(error)) {
-            if (error.status === 403) {
-              setRestoreResult({ ok: false, message: '복원 권한이 없습니다.' })
-            } else if (error.status === 409) {
-              setRestoreResult({
-                ok: false,
-                message: '다른 사용자가 먼저 파일을 수정했습니다. 잠시 후 다시 시도해주세요.',
-              })
-            } else {
-              setRestoreResult({ ok: false, message: error.message })
-            }
-          } else {
-            setRestoreResult({ ok: false, message: '복원 중 오류가 발생했습니다.' })
-          }
-          setTimeout(() => setRestoreResult(null), 4000)
-        },
-      },
-    )
-  }
+  const confirmVersion =
+    restorePhase?.phase === 'confirm'
+      ? (versions.find((v) => v.id === restorePhase.versionId) ?? null)
+      : null
 
   if (!fileId) {
     return (
@@ -142,15 +106,15 @@ export default function FileHistoryPanel() {
   return (
     <div className="flex-1 overflow-auto px-6 py-4 flex flex-col gap-4 min-w-0 relative">
       {/* 토스트 */}
-      {restoreResult && (
+      {restorePhase?.phase === 'toast' && (
         <div
           className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-lg shadow-lg text-[13px] border ${
-            restoreResult.ok
+            restorePhase.ok
               ? 'bg-bg-secondary border-green-500/40 text-green-400'
               : 'bg-bg-secondary border-red-500/40 text-red-400'
           }`}
         >
-          {restoreResult.message}
+          {restorePhase.message}
         </div>
       )}
 
@@ -265,7 +229,7 @@ export default function FileHistoryPanel() {
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  setConfirmVersionId(v.id)
+                  requestRestore(v.id)
                 }}
                 className="mt-2 w-full text-[11px] px-2 py-1 rounded border border-border/60 text-text-primary/50 hover:text-text-primary/80 hover:border-border hover:bg-bg-tertiary transition-colors"
               >
@@ -291,7 +255,7 @@ export default function FileHistoryPanel() {
       </div>
 
       {/* 복원 확인 모달 */}
-      {confirmVersionId && confirmVersion && (
+      {restorePhase?.phase === 'confirm' && confirmVersion && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-bg-secondary border border-border rounded-xl p-6 w-96 shadow-2xl">
             <h3 className="text-[15px] font-semibold text-text-primary mb-1">버전 복원</h3>
@@ -319,13 +283,13 @@ export default function FileHistoryPanel() {
             </div>
             <div className="flex gap-2 justify-end">
               <button
-                onClick={() => setConfirmVersionId(null)}
+                onClick={cancelRestore}
                 className="px-4 py-1.5 text-[13px] text-text-primary/60 hover:text-text-primary transition-colors"
               >
                 취소
               </button>
               <button
-                onClick={handleRestoreConfirm}
+                onClick={() => fileId && confirmRestore(fileId, `v${confirmVersion.version}`)}
                 disabled={isRestoring}
                 className="px-4 py-1.5 text-[13px] bg-accent text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
               >

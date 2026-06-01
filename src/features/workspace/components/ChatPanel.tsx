@@ -146,7 +146,6 @@ export default function ChatPanel() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const searchInputRef = useRef<HTMLInputElement>(null)
   const isAtBottomRef = useRef(true)
 
   const handleScroll = () => {
@@ -160,12 +159,6 @@ export default function ChatPanel() {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
   }, [messages])
-
-  useEffect(() => {
-    if (searchOpen) {
-      setTimeout(() => searchInputRef.current?.focus(), 50)
-    }
-  }, [searchOpen])
 
   const closeSearch = () => {
     setSearchOpen(false)
@@ -271,7 +264,7 @@ export default function ChatPanel() {
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
           <input
-            ref={searchInputRef}
+            autoFocus
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             placeholder="메시지 검색..."

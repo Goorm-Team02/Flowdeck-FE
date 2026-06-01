@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 
 import MonacoEditor from '@monaco-editor/react'
@@ -9,6 +9,7 @@ import { useCreateFileVersion } from '../hooks/useCreateFileVersion'
 import { useFile } from '../hooks/useFile'
 import { useSaveFile } from '../hooks/useSaveFile'
 import { fileTreeKeys } from '../lib/queryKeys'
+import { fileEditorsAtom } from '../stores/fileEditorAtom'
 import {
   baseRevisionAtom,
   isDirtyAtom,
@@ -19,6 +20,9 @@ import { historyOpenAtom, timelineOpenAtom } from '../stores/sidebarAtom'
 import FileDiffViewer from './FileDiffViewer'
 import TerminalPanel from './TerminalPanel'
 import VersionTimelineSlide from './VersionTimelineSlide'
+
+// 현재 사용자 ID — 추후 auth 연동 시 실제 값으로 교체
+const CURRENT_USER_ID = 1
 
 // VIEWER 권한 여부 — 추후 auth 연동 시 실제 권한으로 교체
 const useIsViewer = () => false
@@ -59,21 +63,30 @@ export default function EditorArea() {
   const jotaiStore = useStore()
   const queryClient = useQueryClient()
   const isViewer = useIsViewer()
+  const fileEditors = useAtomValue(fileEditorsAtom)
+
+  const activeEditor = openFileId ? fileEditors.get(openFileId) : undefined
+  const isLockedByOther = !!activeEditor && activeEditor.actorId !== CURRENT_USER_ID
+  const isReadOnly = isViewer || isLockedByOther
 
   const { data: file, isLoading, isError } = useFile(projectId, openFileId)
   const { mutate: save, isPending: isSaving } = useSaveFile(projectId)
-  const { mutate: createVersion, isPending: isCreatingVersion } = useCreateFileVersion(projectId)
+  const {
+    mutate: createVersion,
+    isPending: isCreatingVersion,
+    isSuccess: versionSaved,
+    reset: resetVersionSaved,
+  } = useCreateFileVersion(projectId)
 
-  const [versionSaved, setVersionSaved] = useState(false)
+  useEffect(() => {
+    if (!versionSaved) return
+    const id = setTimeout(resetVersionSaved, 2000)
+    return () => clearTimeout(id)
+  }, [versionSaved, resetVersionSaved])
 
   const handleCreateVersion = () => {
     if (!openFileId) return
-    createVersion(openFileId, {
-      onSuccess: () => {
-        setVersionSaved(true)
-        setTimeout(() => setVersionSaved(false), 2000)
-      },
-    })
+    createVersion(openFileId)
   }
 
   const contentRef = useRef<string>('')
@@ -219,42 +232,67 @@ export default function EditorArea() {
             </div>
           )}
           {file && (
-            <MonacoEditor
-              key={editorKey}
-              height="100%"
-              language={language}
-              defaultValue={file.content}
-              theme="vs-dark"
-              onChange={(value) => {
-                contentRef.current = value ?? ''
-                setIsDirty(true)
-              }}
-              onMount={(editor, monaco) => {
-                contentRef.current = file.content
-                // Cmd/Ctrl+S — useStore로 최신 atom 값을 항상 읽어서 stale closure 방지
-                editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
-                  const fileId = jotaiStore.get(openFileIdAtom)
-                  const rev = jotaiStore.get(baseRevisionAtom)
-                  const dirty = jotaiStore.get(isDirtyAtom)
-                  if (!fileId || rev === null || !dirty) return
-                  save({ fileId, content: contentRef.current, baseRevision: rev })
-                })
-              }}
-              options={{
-                fontSize: 13,
-                lineHeight: 22,
-                fontFamily: "'Menlo', 'Monaco', 'Courier New', monospace",
-                minimap: { enabled: false },
-                scrollBeyondLastLine: false,
-                tabSize: 2,
-                wordWrap: 'on',
-                renderLineHighlight: 'line',
-                overviewRulerLanes: 0,
-                hideCursorInOverviewRuler: true,
-                overviewRulerBorder: false,
-                padding: { top: 12, bottom: 12 },
-              }}
-            />
+            <>
+              {isLockedByOther && (
+                <div className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 shrink-0 text-[12px] text-amber-400/90">
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    className="shrink-0"
+                  >
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                  <span>
+                    <span className="font-medium">{activeEditor?.actorName}</span>님이 편집
+                    중입니다. 읽기 전용 모드로 열립니다.
+                  </span>
+                </div>
+              )}
+              <MonacoEditor
+                key={editorKey}
+                height="100%"
+                language={language}
+                defaultValue={file.content}
+                theme="vs-dark"
+                onChange={(value) => {
+                  if (isReadOnly) return
+                  contentRef.current = value ?? ''
+                  setIsDirty(true)
+                }}
+                onMount={(editor, monaco) => {
+                  contentRef.current = file.content
+                  if (isReadOnly) return
+                  // Cmd/Ctrl+S — useStore로 최신 atom 값을 항상 읽어서 stale closure 방지
+                  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+                    const fileId = jotaiStore.get(openFileIdAtom)
+                    const rev = jotaiStore.get(baseRevisionAtom)
+                    const dirty = jotaiStore.get(isDirtyAtom)
+                    if (!fileId || rev === null || !dirty) return
+                    save({ fileId, content: contentRef.current, baseRevision: rev })
+                  })
+                }}
+                options={{
+                  readOnly: isReadOnly,
+                  fontSize: 13,
+                  lineHeight: 22,
+                  fontFamily: "'Menlo', 'Monaco', 'Courier New', monospace",
+                  minimap: { enabled: false },
+                  scrollBeyondLastLine: false,
+                  tabSize: 2,
+                  wordWrap: 'on',
+                  renderLineHighlight: 'line',
+                  overviewRulerLanes: 0,
+                  hideCursorInOverviewRuler: true,
+                  overviewRulerBorder: false,
+                  padding: { top: 12, bottom: 12 },
+                }}
+              />
+            </>
           )}
 
           {/* 충돌 모달 */}

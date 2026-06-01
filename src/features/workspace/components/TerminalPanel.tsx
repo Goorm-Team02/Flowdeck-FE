@@ -72,6 +72,8 @@ export default function TerminalPanel() {
   const stopTrigger = useAtomValue(stopTriggerAtom)
   const prevRun = useRef(0)
   const prevStop = useRef(0)
+  const runDevServerRef = useRef<() => void>(() => {})
+  const stopDevServerRef = useRef<() => void>(() => {})
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const timerIds = useRef<ReturnType<typeof setTimeout>[]>([])
@@ -123,25 +125,26 @@ export default function TerminalPanel() {
   }
 
   useEffect(() => {
+    runDevServerRef.current = runDevServer
+    stopDevServerRef.current = stopDevServer
+  })
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'auto' })
   }, [lines, isRunning])
 
   useEffect(() => {
     if (runTrigger > prevRun.current) {
       prevRun.current = runTrigger
-      runDevServer()
+      runDevServerRef.current()
     }
-    // runDevServer는 의도적으로 deps 제외 — trigger 카운터 패턴
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runTrigger])
 
   useEffect(() => {
     if (stopTrigger > prevStop.current) {
       prevStop.current = stopTrigger
-      stopDevServer()
+      stopDevServerRef.current()
     }
-    // stopDevServer는 의도적으로 deps 제외 — trigger 카운터 패턴
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stopTrigger])
 
   const executeCommand = (cmd: string) => {

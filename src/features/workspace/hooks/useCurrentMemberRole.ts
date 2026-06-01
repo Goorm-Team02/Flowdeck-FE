@@ -2,7 +2,7 @@ import type { Member, MemberRole } from '../types'
 import { useMembers } from './useMembers'
 
 // 현재 사용자 ID — 추후 auth 연동 시 실제 값으로 교체
-const getCurrentUserId = () => null as string | null
+const getCurrentUserId = () => 'user-001' as string | null
 
 export function useCurrentMemberRole(projectId: string): MemberRole | null {
   const currentUserId = getCurrentUserId()
