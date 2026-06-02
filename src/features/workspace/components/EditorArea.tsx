@@ -5,7 +5,10 @@ import MonacoEditor from '@monaco-editor/react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAtom, useAtomValue, useStore } from 'jotai'
 
+import { currentUserAtom } from '@/features/auth/stores/currentUserAtom'
+
 import { useCreateFileVersion } from '../hooks/useCreateFileVersion'
+import { useCurrentMemberRole } from '../hooks/useCurrentMemberRole'
 import { useFile } from '../hooks/useFile'
 import { useSaveFile } from '../hooks/useSaveFile'
 import { fileTreeKeys } from '../lib/queryKeys'
@@ -20,12 +23,6 @@ import { historyOpenAtom, timelineOpenAtom } from '../stores/sidebarAtom'
 import FileDiffViewer from './FileDiffViewer'
 import TerminalPanel from './TerminalPanel'
 import VersionTimelineSlide from './VersionTimelineSlide'
-
-// 현재 사용자 ID — 추후 auth 연동 시 실제 값으로 교체
-const CURRENT_USER_ID = 1
-
-// VIEWER 권한 여부 — 추후 auth 연동 시 실제 권한으로 교체
-const useIsViewer = () => false
 
 function getLanguage(filename: string): string {
   const ext = filename.split('.').pop()?.toLowerCase()
@@ -62,11 +59,18 @@ export default function EditorArea() {
   const [saveConflict, setSaveConflict] = useAtom(saveConflictAtom)
   const jotaiStore = useStore()
   const queryClient = useQueryClient()
-  const isViewer = useIsViewer()
+  const currentUser = useAtomValue(currentUserAtom)
+  const memberRole = useCurrentMemberRole(projectId)
+  const isViewer = memberRole === 'VIEWER'
   const fileEditors = useAtomValue(fileEditorsAtom)
 
   const activeEditor = openFileId ? fileEditors.get(openFileId) : undefined
-  const isLockedByOther = !!activeEditor && activeEditor.actorId !== CURRENT_USER_ID
+  // numericId가 확인된 경우에만 락 적용 (-1이면 미확인 → 락 미적용)
+  const isLockedByOther =
+    !!activeEditor &&
+    currentUser !== null &&
+    currentUser.numericId !== -1 &&
+    activeEditor.actorId !== currentUser.numericId
   const isReadOnly = isViewer || isLockedByOther
 
   const { data: file, isLoading, isError } = useFile(projectId, openFileId)
