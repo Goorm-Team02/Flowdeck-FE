@@ -2,11 +2,12 @@ import {
   Plus, List, X, Settings, Users, Globe, LogOut, Terminal, 
   ArrowUpRight, Edit3, Trash2, User, Check, AlertCircle
 } from "lucide-react";
-import React, { useState, useEffect, FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuthStore } from "../../features/auth/authStore";
-import { projectService, authService } from "../../features/auth/api/customApi";
-import type { Project, ProjectMember, User as UserType } from "../../features/auth/authTypes";
+import { useState, useEffect, type FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
+
+import { useAuthStore } from '@/features/auth/authStore'
+import { projectService } from '@/features/auth/api/customApi'
+import type { Project, ProjectMember } from '@/features/auth/authTypes'
 
 type TabType = "my" | "shared" | "public" | "mypage" | "settings";
 

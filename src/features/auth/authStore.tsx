@@ -1,5 +1,5 @@
 // src/features/auth/authStore.tsx
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
 import type { User } from "./authTypes";
 import { authService, tokenStorage } from "./api/customApi";
 

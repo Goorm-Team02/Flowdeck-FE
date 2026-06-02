@@ -1,14 +1,15 @@
+import { useAtomValue } from 'jotai'
+
+import { currentUserAtom } from '@/features/auth/stores/currentUserAtom'
+
 import type { Member, MemberRole } from '../types'
 import { useMembers } from './useMembers'
 
-// 현재 사용자 ID — 추후 auth 연동 시 실제 값으로 교체
-const getCurrentUserId = () => 'user-001' as string | null
-
 export function useCurrentMemberRole(projectId: string): MemberRole | null {
-  const currentUserId = getCurrentUserId()
+  const currentUser = useAtomValue(currentUserAtom)
   const { data: members = [] } = useMembers(projectId)
-  if (!currentUserId) return null
-  return members.find((m) => m.userId === currentUserId)?.role ?? null
+  if (!currentUser) return null
+  return members.find((m) => m.userId === currentUser.userId)?.role ?? null
 }
 
 export function isLastOwner(members: Member[], userId: string | null): boolean {

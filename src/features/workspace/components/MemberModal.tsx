@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
-import { useAtom } from 'jotai'
+import { useAtom, useAtomValue } from 'jotai'
 
+import { currentUserAtom } from '@/features/auth/stores/currentUserAtom'
 import { isApiError, isNetworkError } from '@/shared/api/errors'
 
 import { isLastOwner, useCurrentMemberRole } from '../hooks/useCurrentMemberRole'
@@ -19,9 +20,6 @@ type ConfirmState =
   | { type: 'remove'; memberId: number }
   | { type: 'leave' }
   | null
-
-// 현재 사용자 ID — 추후 auth 연동 시 실제 값으로 교체
-const useCurrentUserId = () => 'user-001' as string | null
 
 const AVATAR_COLORS = [
   'bg-teal-500',
@@ -108,7 +106,8 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 export default function MemberModal() {
   const { projectId = '' } = useParams<{ projectId: string }>()
   const [isOpen, setIsOpen] = useAtom(memberModalOpenAtom)
-  const currentUserId = useCurrentUserId()
+  const currentUser = useAtomValue(currentUserAtom)
+  const currentUserId = currentUser?.userId ?? null
   const currentRole = useCurrentMemberRole(projectId)
   const isOwner = currentRole === 'OWNER'
 
