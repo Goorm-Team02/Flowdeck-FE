@@ -252,7 +252,7 @@ export default function ProjectListPage() {
       {/* Top Header */}
       <header id="app_header" className="h-14 bg-bg-secondary border-b border-border flex items-center justify-between px-6 shrink-0">
         <div className="flex items-center gap-4">
-          <div className="w-8 h-8 bg-accent rounded flex items-center justify-center font-bold text-text-primary shadow-inner">F</div>
+          <img src="/favicon.svg" alt="Flowdeck" className="w-8 h-8" />
           <h1 className="text-lg font-semibold tracking-tight text-text-primary flex items-center gap-2">
             Flowdeck 
             <span className="text-[10px] bg-accent/20 text-accent font-semibold px-2 py-0.5 rounded-full border border-accent/30">
@@ -412,9 +412,6 @@ export default function ProjectListPage() {
                                 초대 승인 대기
                               </span>
                             )}
-                            <span className="px-2 py-0.5 bg-bg-deep border border-border rounded text-[9.5px] text-text-muted uppercase tracking-widest font-semibold">
-                              {project.visibility === "PUBLIC" ? "Public" : "Private"}
-                            </span>
                           </div>
                         </div>
                         
@@ -430,35 +427,33 @@ export default function ProjectListPage() {
                         </p>
                         
                         <div className="flex items-center justify-between pt-4 border-t border-border mt-auto text-xs">
-                          <div className="flex flex-col">
-                            <span className="text-[10px] text-text-muted/70 uppercase">창설주식(Owner)</span>
-                            <span className="text-text-primary/80 font-medium truncate max-w-[120px]">{project.ownerName}</span>
-                          </div>
-                          
+                          <span className={`text-[10px] px-2 py-1 rounded border font-medium ${
+                            project.visibility === 'PUBLIC'
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                              : 'bg-bg-deep text-text-muted/70 border-border'
+                          }`}>
+                            {project.visibility === 'PUBLIC' ? 'PUBLIC' : 'PRIVATE'}
+                          </span>
+
                           <div className="flex items-center gap-2.5">
-                            {/* OWNER options (Modify and Delete) */}
                             {project.isMyProject && (
                               <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                                 <button
                                   onClick={(e) => openEditModal(project, e)}
-                                  title="프로젝트 설정 조율"
+                                  title="프로젝트 설정"
                                   className="p-1.5 hover:bg-bg-tertiary hover:text-accent rounded-md text-text-muted border border-transparent hover:border-border/60 transition-all cursor-pointer"
                                 >
                                   <Edit3 size={13} />
                                 </button>
                                 <button
                                   onClick={(e) => handleDeleteProject(project.id, e)}
-                                  title="프로젝트 영구 삭제"
+                                  title="프로젝트 삭제"
                                   className="p-1.5 hover:bg-bg-tertiary hover:text-red-400 rounded-md text-text-muted border border-transparent hover:border-border/60 transition-all cursor-pointer"
                                 >
                                   <Trash2 size={13} />
                                 </button>
                               </div>
                             )}
-
-                            <span className="text-[10px] bg-bg-deep text-text-muted/70 px-2 py-1 rounded border border-border">
-                              팀원 {project.members.length}명
-                            </span>
                           </div>
                         </div>
 
