@@ -16,6 +16,7 @@ export function useRestoreFileVersion(projectId: string) {
       baseRevision: number
     }) => restoreFileVersion(projectId, fileId, versionId, baseRevision),
     onSuccess: (_, { fileId }) => {
+      queryClient.invalidateQueries({ queryKey: fileTreeKeys.all(projectId) })
       queryClient.invalidateQueries({ queryKey: fileTreeKeys.detail(projectId, fileId) })
       queryClient.invalidateQueries({ queryKey: fileVersionKeys.all(projectId, fileId) })
     },

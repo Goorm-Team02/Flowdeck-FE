@@ -429,7 +429,7 @@ export default function FileTreePanel() {
 
   const { mutate: create } = useCreateFile(projectId)
   const { mutate: rename } = useRenameFile(projectId)
-  const { mutate: remove, error: deleteError } = useDeleteFile(projectId)
+  const { mutate: remove, error: deleteError, reset: resetDelete } = useDeleteFile(projectId)
   const { mutate: move, error: moveError, reset: resetMove } = useMoveFile(projectId)
 
   const [deleteTarget, setDeleteTarget] = useState<FileNode | null>(null)
@@ -634,7 +634,7 @@ export default function FileTreePanel() {
             </p>
             <div className="flex justify-end">
               <button
-                onClick={() => setDeleteTarget(null)}
+                onClick={resetDelete}
                 className="px-4 py-1.5 text-[13px] bg-accent text-white rounded-lg hover:opacity-90 transition-opacity"
               >
                 확인
