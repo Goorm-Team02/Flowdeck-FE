@@ -9,7 +9,7 @@ export function createStompClient(getToken: () => string | null): Client {
     reconnectDelay: 5_000,
     heartbeatIncoming: 10_000,
     heartbeatOutgoing: 10_000,
-    debug: import.meta.env.DEV ? (msg) => console.debug('[STOMP]', msg) : undefined,
+    debug: import.meta.env.DEV ? (msg) => console.debug('[STOMP]', msg) : () => {},
     beforeConnect: async function (this: Client) {
       const token = getToken()
       this.connectHeaders = token ? { Authorization: `Bearer ${token}` } : {}
