@@ -429,10 +429,11 @@ export default function FileTreePanel() {
 
   const { mutate: create } = useCreateFile(projectId)
   const { mutate: rename } = useRenameFile(projectId)
-  const { mutate: remove, error: deleteError, reset: resetDelete } = useDeleteFile(projectId)
+  const { mutate: remove, reset: resetDelete } = useDeleteFile(projectId)
   const { mutate: move, error: moveError, reset: resetMove } = useMoveFile(projectId)
 
   const [deleteTarget, setDeleteTarget] = useState<FileNode | null>(null)
+  const [isDeleteConflictOpen, setIsDeleteConflictOpen] = useState(false)
   const [rootCreatingType, setRootCreatingType] = useState<FileNodeType | null>(null)
 
   const [draggingId, setDraggingId] = useState<number | null>(null)
@@ -477,11 +478,26 @@ export default function FileTreePanel() {
 
   const handleDeleteConfirm = () => {
     if (!deleteTarget) return
-    remove({ fileId: deleteTarget.id, expectedRevision: deleteTarget.editRevision ?? 0 })
+    setIsDeleteConflictOpen(false)
+    remove(
+      { fileId: deleteTarget.id, expectedRevision: deleteTarget.editRevision ?? 0 },
+      {
+        onError: (error) => {
+          if (isApiError(error) && error.status === 409) {
+            setIsDeleteConflictOpen(true)
+          }
+        },
+      },
+    )
     setDeleteTarget(null)
   }
 
-  const isDeleteConflict = isApiError(deleteError) && deleteError.status === 409
+  const closeDeleteConflict = () => {
+    setIsDeleteConflictOpen(false)
+    resetDelete()
+  }
+
+  const isDeleteConflict = isDeleteConflictOpen
 
   return (
     <>
@@ -634,7 +650,7 @@ export default function FileTreePanel() {
             </p>
             <div className="flex justify-end">
               <button
-                onClick={resetDelete}
+                onClick={closeDeleteConflict}
                 className="px-4 py-1.5 text-[13px] bg-accent text-white rounded-lg hover:opacity-90 transition-opacity"
               >
                 확인
