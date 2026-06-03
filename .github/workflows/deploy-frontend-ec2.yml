@@ -1,0 +1,87 @@
+name: Deploy Frontend to EC2
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'index.html'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.ts'
+      - 'tsconfig*.json'
+      - '.github/workflows/deploy-frontend-ec2.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: frontend-ec2-deploy-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build and deploy frontend
+    runs-on: ubuntu-latest
+
+    env:
+      FRONTEND_HOST: ${{ secrets.FRONTEND_HOST }}
+      FRONTEND_USER: ${{ secrets.FRONTEND_USER }}
+      FRONTEND_PORT: ${{ secrets.FRONTEND_PORT || '22' }}
+      FRONTEND_BASE_PATH: ${{ secrets.FRONTEND_BASE_PATH || '/var/www' }}
+      FRONTEND_DEV_DEPLOY_PATH: ${{ secrets.FRONTEND_DEV_DEPLOY_PATH }}
+      FRONTEND_PROD_DEPLOY_PATH: ${{ secrets.FRONTEND_PROD_DEPLOY_PATH }}
+      VITE_API_BASE_URL_DEV: ${{ secrets.VITE_API_BASE_URL_DEV }}
+      VITE_WS_URL_DEV: ${{ secrets.VITE_WS_URL_DEV }}
+      VITE_API_BASE_URL_PROD: ${{ secrets.VITE_API_BASE_URL_PROD }}
+      VITE_WS_URL_PROD: ${{ secrets.VITE_WS_URL_PROD }}
+      VITE_USE_MSW: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select deployment target
+        run: |
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            echo "FRONTEND_DEPLOY_PATH=${FRONTEND_PROD_DEPLOY_PATH:-$FRONTEND_BASE_PATH/frontend-prod/app}" >> "$GITHUB_ENV"
+            echo "VITE_API_BASE_URL=$VITE_API_BASE_URL_PROD" >> "$GITHUB_ENV"
+            echo "VITE_WS_URL=$VITE_WS_URL_PROD" >> "$GITHUB_ENV"
+          else
+            echo "FRONTEND_DEPLOY_PATH=${FRONTEND_DEV_DEPLOY_PATH:-$FRONTEND_BASE_PATH/frontend-dev/app}" >> "$GITHUB_ENV"
+            echo "VITE_API_BASE_URL=$VITE_API_BASE_URL_DEV" >> "$GITHUB_ENV"
+            echo "VITE_WS_URL=$VITE_WS_URL_DEV" >> "$GITHUB_ENV"
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s' "${{ secrets.FRONTEND_SSH_KEY }}" > ~/.ssh/frontend_deploy_key
+          chmod 600 ~/.ssh/frontend_deploy_key
+          ssh-keyscan -p "$FRONTEND_PORT" "$FRONTEND_HOST" >> ~/.ssh/known_hosts
+
+      - name: Ensure remote directory exists
+        run: |
+          ssh -i ~/.ssh/frontend_deploy_key -p "$FRONTEND_PORT" \
+            "$FRONTEND_USER@$FRONTEND_HOST" "mkdir -p '$FRONTEND_DEPLOY_PATH'"
+
+      - name: Deploy dist to EC2
+        run: |
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/frontend_deploy_key -p $FRONTEND_PORT" \
+            dist/ "$FRONTEND_USER@$FRONTEND_HOST:$FRONTEND_DEPLOY_PATH/"
+
