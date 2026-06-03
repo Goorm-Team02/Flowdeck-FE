@@ -20,6 +20,8 @@ export function useFileSocket(projectId: string) {
     // 파일 트리 캐시 무효화
     if (
       event.eventType === 'FILE_CREATED' ||
+      event.eventType === 'FILE_SAVED' ||
+      event.eventType === 'FILE_RESTORED' ||
       event.eventType === 'FILE_DELETED' ||
       event.eventType === 'FILE_RENAMED' ||
       event.eventType === 'FILE_MOVED'

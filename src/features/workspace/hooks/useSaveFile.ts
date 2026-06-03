@@ -6,6 +6,7 @@ import { isApiError } from '@/shared/api/errors'
 import { saveFile } from '../api/files'
 import { fileTreeKeys } from '../lib/queryKeys'
 import { baseRevisionAtom, isDirtyAtom, saveConflictAtom } from '../stores/openFileAtom'
+import type { FileDetail } from '../types'
 
 interface SaveFileVariables {
   fileId: number
@@ -26,13 +27,14 @@ export function useSaveFile(projectId: string) {
       // 서버 응답에 content가 없을 수 있으므로 전송한 content를 직접 유지
       queryClient.setQueryData(
         fileTreeKeys.detail(projectId, data.id),
-        (old: import('../types').FileDetail | undefined) => ({
+        (old: FileDetail | undefined) => ({
           ...(old ?? data),
           editRevision: data.editRevision,
           currentVersion: data.currentVersion,
           content: variables.content,
         }),
       )
+      queryClient.invalidateQueries({ queryKey: fileTreeKeys.all(projectId) })
       setBaseRevision(data.editRevision)
       setIsDirty(false)
     },
