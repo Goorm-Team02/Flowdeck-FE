@@ -32,7 +32,6 @@ export default function ProjectListPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [visibility, setVisibility] = useState<"PUBLIC" | "PRIVATE">("PRIVATE");
-  const [invitedEmailsStr, setInvitedEmailsStr] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -140,16 +139,10 @@ export default function ProjectListPage() {
     setIsCreating(true);
 
     try {
-      const emails = invitedEmailsStr
-        .split(/[,\n]/)
-        .map(email => email.trim())
-        .filter(email => email.length > 0 && email.includes("@"));
-
       await projectService.createProject({
         title,
         visibility,
         description,
-        invitedEmails: emails,
       });
 
       await syncServerProjects();
@@ -158,7 +151,6 @@ export default function ProjectListPage() {
       setTitle("");
       setDescription("");
       setVisibility("PRIVATE");
-      setInvitedEmailsStr("");
       alert("프로젝트가 성공적으로 창설되었습니다!");
     } catch (err: any) {
       console.error("Failed to create project:", err);
@@ -696,19 +688,7 @@ export default function ProjectListPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-2">실시간 동기화 초대 대상자 (이메일)</label>
-                <textarea
-                  value={invitedEmailsStr}
-                  onChange={(e) => setInvitedEmailsStr(e.target.value)}
-                  rows={2}
-                  className="w-full rounded-md bg-bg-deep border border-border p-3 text-xs text-text-primary focus:border-accent outline-none resize-none"
-                  placeholder="여러 명일 경우 쉼표(,)나 줄바꿈으로 구분해 기입해줍니다. 예: user1@flowdeck.io, user2@flowdeck.io"
-                />
-                <span className="text-[10px] text-text-muted/70 mt-1 block">초대받은 대상 멤버들은 로그인 시 대기중인 초대 상태로 대시보드에 나타납니다.</span>
-              </div>
-
-              <div className="pt-4 border-t border-border flex justify-end gap-3 text-xs">
+<div className="pt-4 border-t border-border flex justify-end gap-3 text-xs">
                 <button 
                   type="button"
                   onClick={() => setIsModalOpen(false)}
