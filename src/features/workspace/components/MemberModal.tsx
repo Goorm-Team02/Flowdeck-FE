@@ -107,7 +107,8 @@ export default function MemberModal() {
   const { projectId = '' } = useParams<{ projectId: string }>()
   const [isOpen, setIsOpen] = useAtom(memberModalOpenAtom)
   const currentUser = useAtomValue(currentUserAtom)
-  const currentUserId = currentUser?.userId ?? null
+  // publicId(JWT sub = UUID)를 우선, fallback으로 userId
+  const currentUserId = currentUser?.publicId || currentUser?.userId || null
   const currentRole = useCurrentMemberRole(projectId)
   const isOwner = currentRole === 'OWNER'
 

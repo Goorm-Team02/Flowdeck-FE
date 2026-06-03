@@ -3,7 +3,10 @@ import { createRoot } from 'react-dom/client'
 
 import App from '@/app/App'
 import { AppProviders } from '@/app/providers'
+import { applyTheme, getStoredTheme } from '@/shared/lib/theme'
 import '@/styles/index.css'
+
+applyTheme(getStoredTheme())
 
 async function prepare() {
   if (import.meta.env.DEV && import.meta.env.VITE_USE_MSW === 'true') {

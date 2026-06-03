@@ -11,3 +11,9 @@ export const isDirtyAtom = atom<boolean>(false)
 
 // 409 충돌 발생 여부
 export const saveConflictAtom = atom<boolean>(false)
+
+// 현재 에디터에 열린 파일 이름 (TopBar에서 언어 판별 용)
+export const openFileNameAtom = atom<string>('')
+
+// 현재 에디터 내용 (실행 버튼에서 읽기 용)
+export const editorContentAtom = atom<string>('')

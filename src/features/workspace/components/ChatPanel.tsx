@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
+import { useAtomValue } from 'jotai'
+
+import { currentUserAtom } from '@/features/auth/stores/currentUserAtom'
 import { isApiError } from '@/shared/api/errors'
 import { useDebounce } from '@/shared/hooks/useDebounce'
 
@@ -9,9 +12,6 @@ import { useDeleteMessage } from '../hooks/useDeleteMessage'
 import { useMessageSearch } from '../hooks/useMessageSearch'
 import { useMessages } from '../hooks/useMessages'
 import { usePublishMessage } from '../hooks/usePublishMessage'
-
-// 현재 사용자 ID — 추후 auth 연동 시 실제 값으로 교체
-const useCurrentUserId = () => null as number | null
 
 // VIEWER 권한 여부 — 추후 auth 연동 시 실제 권한으로 교체
 const useIsViewer = () => false
@@ -54,16 +54,6 @@ function HighlightedText({ text, keyword }: { text: string; keyword: string }) {
   )
 }
 
-interface AttachedFile {
-  name: string
-  size: string
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes}B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`
-}
 
 const EMOJIS = [
   '😀',
@@ -88,7 +78,6 @@ const EMOJIS = [
   '😏',
   '🫠',
   '🙃',
-  '😤',
   '🤯',
   '👍',
   '👎',
@@ -118,7 +107,8 @@ const EMOJIS = [
 
 export default function ChatPanel() {
   const { projectId = '' } = useParams<{ projectId: string }>()
-  const currentUserId = useCurrentUserId()
+  const currentUser = useAtomValue(currentUserAtom)
+  const currentUserId = currentUser?.numericId ?? null
   const isViewer = useIsViewer()
 
   const { data: messages = [], isLoading, isError } = useMessages(projectId)
@@ -128,7 +118,6 @@ export default function ChatPanel() {
 
   const [input, setInput] = useState('')
   const [showEmoji, setShowEmoji] = useState(false)
-  const [attachedFile, setAttachedFile] = useState<AttachedFile | null>(null)
   const [deletingId, setDeletingId] = useState<number | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
@@ -144,7 +133,6 @@ export default function ChatPanel() {
 
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const isAtBottomRef = useRef(true)
 
@@ -170,7 +158,6 @@ export default function ChatPanel() {
     if (!text || isViewer) return
     publishMessage(text)
     setInput('')
-    setAttachedFile(null)
   }
 
   const handleDeleteConfirm = (messageId: number) => {
@@ -189,7 +176,7 @@ export default function ChatPanel() {
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
       if (e.metaKey || e.ctrlKey || !e.shiftKey) {
         e.preventDefault()
         sendMessage()
@@ -197,14 +184,6 @@ export default function ChatPanel() {
     }
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      setAttachedFile({ name: file.name, size: formatFileSize(file.size) })
-    }
-    e.target.value = ''
-    inputRef.current?.focus()
-  }
 
   const insertEmoji = (emoji: string) => {
     setInput((prev) => prev + emoji)
@@ -314,12 +293,12 @@ export default function ChatPanel() {
               </p>
               {searchResults.map((msg) =>
                 msg.messageType === 'LOG' ? (
-                  <div key={msg.id} className="flex items-center gap-3 py-1">
-                    <div className="flex-1 h-px bg-border" />
-                    <span className="text-[11px] text-text-primary/35 shrink-0">
+                  <div key={msg.id} className="flex items-center gap-2 py-1">
+                    <div className="w-3 h-px bg-border shrink-0" />
+                    <span className="text-[11px] text-text-primary/35 text-center break-words flex-1">
                       <HighlightedText text={msg.content} keyword={debouncedKeyword} />
                     </span>
-                    <div className="flex-1 h-px bg-border" />
+                    <div className="w-3 h-px bg-border shrink-0" />
                   </div>
                 ) : (
                   <div key={msg.id} className="flex gap-2.5">
@@ -375,10 +354,10 @@ export default function ChatPanel() {
             >
               {messages.map((msg) =>
                 msg.messageType === 'LOG' ? (
-                  <div key={msg.id} className="flex items-center gap-3 py-1">
-                    <div className="flex-1 h-px bg-border" />
-                    <span className="text-[11px] text-text-primary/35 shrink-0">{msg.content}</span>
-                    <div className="flex-1 h-px bg-border" />
+                  <div key={msg.id} className="flex items-center gap-2 py-1">
+                    <div className="w-3 h-px bg-border shrink-0" />
+                    <span className="text-[11px] text-text-primary/35 text-center break-words flex-1">{msg.content}</span>
+                    <div className="w-3 h-px bg-border shrink-0" />
                   </div>
                 ) : (
                   <div key={msg.id} className="group flex gap-2.5">
@@ -392,7 +371,7 @@ export default function ChatPanel() {
                         <span className="text-[13px] font-semibold text-text-primary">
                           {msg.senderName}
                         </span>
-                        {currentUserId === msg.userId && (
+                        {currentUserId !== null && currentUserId !== -1 && currentUserId === msg.userId && (
                           <span className="text-[11px] text-text-primary/35">(나)</span>
                         )}
                         <span className="text-[11px] text-text-primary/35">
@@ -421,7 +400,7 @@ export default function ChatPanel() {
                         </div>
                       )}
                     </div>
-                    {currentUserId === msg.userId && deletingId !== msg.id && (
+                    {currentUserId !== null && currentUserId !== -1 && currentUserId === msg.userId && deletingId !== msg.id && (
                       <button
                         onClick={() => setDeletingId(msg.id)}
                         className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5 p-0.5 rounded text-text-primary/30 hover:text-red-400 hover:bg-bg-tertiary"
@@ -474,53 +453,7 @@ export default function ChatPanel() {
           )}
 
           <div className="rounded-lg border border-border bg-bg-tertiary overflow-hidden">
-            {attachedFile && (
-              <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  className="text-text-primary/50 shrink-0"
-                >
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                  <polyline points="14 2 14 8 20 8" />
-                </svg>
-                <span className="text-[12px] text-text-primary/70 flex-1 truncate">
-                  {attachedFile.name}
-                </span>
-                <span className="text-[11px] text-text-primary/35 shrink-0">
-                  {attachedFile.size}
-                </span>
-                <button
-                  onClick={() => setAttachedFile(null)}
-                  className="text-text-primary/35 hover:text-text-primary/70 transition-colors leading-none ml-1"
-                >
-                  ×
-                </button>
-              </div>
-            )}
-
             <div className="flex items-center gap-2 px-3 py-2">
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="text-text-primary/35 hover:text-text-primary/60 transition-colors shrink-0"
-                title="파일 첨부"
-              >
-                <svg
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                </svg>
-              </button>
-
               <button
                 onClick={() => setShowEmoji((v) => !v)}
                 className={`transition-colors shrink-0 ${showEmoji ? 'text-text-primary/70' : 'text-text-primary/35 hover:text-text-primary/60'}`}
@@ -577,12 +510,8 @@ export default function ChatPanel() {
           </div>
         </div>
 
-        <p className="text-[10px] text-text-primary/20 mt-1.5 text-center">
-          ⌘ + Enter로 전송, @멘션 가능
-        </p>
       </div>
 
-      <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
     </div>
   )
 }

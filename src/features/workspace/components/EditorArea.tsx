@@ -1,26 +1,31 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import MonacoEditor from '@monaco-editor/react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useAtom, useAtomValue, useStore } from 'jotai'
+import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai'
 
 import { currentUserAtom } from '@/features/auth/stores/currentUserAtom'
+
+import { registerMonacoThemes } from '@/shared/lib/monacoThemes'
+import { MONACO_THEME_MAP, editorSettingsAtom } from '@/shared/stores/editorSettingsAtom'
 
 import { useCreateFileVersion } from '../hooks/useCreateFileVersion'
 import { useCurrentMemberRole } from '../hooks/useCurrentMemberRole'
 import { useFile } from '../hooks/useFile'
+import { useFileEditingPresence } from '../hooks/useFileEditingPresence'
 import { useSaveFile } from '../hooks/useSaveFile'
 import { fileTreeKeys } from '../lib/queryKeys'
 import { fileEditorsAtom } from '../stores/fileEditorAtom'
 import {
   baseRevisionAtom,
+  editorContentAtom,
   isDirtyAtom,
   openFileIdAtom,
+  openFileNameAtom,
   saveConflictAtom,
 } from '../stores/openFileAtom'
-import { historyOpenAtom, timelineOpenAtom } from '../stores/sidebarAtom'
-import FileDiffViewer from './FileDiffViewer'
+import { timelineOpenAtom } from '../stores/sidebarAtom'
 import TerminalPanel from './TerminalPanel'
 import VersionTimelineSlide from './VersionTimelineSlide'
 
@@ -52,7 +57,6 @@ function getLanguage(filename: string): string {
 
 export default function EditorArea() {
   const { projectId = '' } = useParams<{ projectId: string }>()
-  const [historyOpen, setHistoryOpen] = useAtom(historyOpenAtom)
   const [timelineOpen, setTimelineOpen] = useAtom(timelineOpenAtom)
   const openFileId = useAtomValue(openFileIdAtom)
   const [isDirty, setIsDirty] = useAtom(isDirtyAtom)
@@ -61,8 +65,14 @@ export default function EditorArea() {
   const queryClient = useQueryClient()
   const currentUser = useAtomValue(currentUserAtom)
   const memberRole = useCurrentMemberRole(projectId)
+  const editorSettings = useAtomValue(editorSettingsAtom)
+  const setEditorContent = useSetAtom(editorContentAtom)
+  const setOpenFileName = useSetAtom(openFileNameAtom)
+  const monacoTheme = MONACO_THEME_MAP[editorSettings.monacoTheme] ?? editorSettings.monacoTheme
   const isViewer = memberRole === 'VIEWER'
   const fileEditors = useAtomValue(fileEditorsAtom)
+
+  useFileEditingPresence(projectId, openFileId, isViewer)
 
   const activeEditor = openFileId ? fileEditors.get(openFileId) : undefined
   // numericId가 확인된 경우에만 락 적용 (-1이면 미확인 → 락 미적용)
@@ -88,17 +98,29 @@ export default function EditorArea() {
     return () => clearTimeout(id)
   }, [versionSaved, resetVersionSaved])
 
+  const [versionMessageOpen, setVersionMessageOpen] = useState(false)
+  const [versionMessage, setVersionMessage] = useState('')
+
   const handleCreateVersion = () => {
     if (!openFileId) return
-    createVersion(openFileId)
+    setVersionMessage('')
+    setVersionMessageOpen(true)
+  }
+
+  const handleVersionMessageConfirm = () => {
+    if (!openFileId || !versionMessage.trim()) return
+    createVersion({ fileId: openFileId, changeMessage: versionMessage.trim() })
+    setVersionMessageOpen(false)
+    setVersionMessage('')
   }
 
   const contentRef = useRef<string>('')
 
-  // 파일 변경(다른 파일 열기, 충돌 후 reload) 시 dirty 초기화
+  // 파일 변경(다른 파일 열기, 충돌 후 reload) 시 dirty 초기화 + 파일명 동기화
   useEffect(() => {
     setIsDirty(false)
-  }, [file?.id, file?.editRevision, setIsDirty])
+    setOpenFileName(file?.name ?? '')
+  }, [file?.id, file?.editRevision, setIsDirty, setOpenFileName, file?.name])
 
   const handleConflictReload = () => {
     if (!openFileId) return
@@ -117,12 +139,9 @@ export default function EditorArea() {
       {/* Tab bar */}
       <div className="flex items-end bg-bg-secondary border-b border-border shrink-0 h-9">
         <button
-          onClick={() => {
-            setHistoryOpen(false)
-            setTimelineOpen(false)
-          }}
+          onClick={() => setTimelineOpen(false)}
           className={`flex items-center gap-2 px-4 h-full text-[13px] transition-colors ${
-            !historyOpen && !timelineOpen
+            !timelineOpen
               ? 'bg-bg-primary border-t-2 border-t-accent text-text-primary'
               : 'text-text-primary/50 hover:text-text-primary/80 hover:bg-bg-primary/50'
           }`}
@@ -131,30 +150,6 @@ export default function EditorArea() {
           <span>{fileName}</span>
           {isSaving && <span className="text-[11px] text-text-primary/30 ml-1">저장 중...</span>}
         </button>
-
-        {historyOpen && (
-          <div className="flex items-center gap-2 px-4 h-full text-[13px] bg-bg-primary border-t-2 border-t-accent text-text-primary">
-            <svg
-              width="13"
-              height="13"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              className="text-text-primary/60"
-            >
-              <rect x="3" y="3" width="7" height="18" rx="1" />
-              <rect x="14" y="3" width="7" height="18" rx="1" />
-            </svg>
-            <span>{fileName} — 비교</span>
-            <span
-              onClick={() => setHistoryOpen(false)}
-              className="text-text-primary/30 hover:text-text-primary/70 text-sm leading-none transition-colors cursor-pointer"
-            >
-              ×
-            </span>
-          </div>
-        )}
 
         {timelineOpen && (
           <div className="flex items-center gap-2 px-4 h-full text-[13px] bg-bg-primary border-t-2 border-t-accent text-text-primary">
@@ -216,8 +211,6 @@ export default function EditorArea() {
       {/* Main content */}
       {timelineOpen ? (
         <VersionTimelineSlide />
-      ) : historyOpen ? (
-        <FileDiffViewer />
       ) : (
         <div className="flex-1 overflow-hidden relative">
           {!openFileId && (
@@ -262,14 +255,18 @@ export default function EditorArea() {
                 height="100%"
                 language={language}
                 defaultValue={file.content}
-                theme="vs-dark"
+                theme={monacoTheme}
                 onChange={(value) => {
                   if (isReadOnly) return
                   contentRef.current = value ?? ''
+                  setEditorContent(value ?? '')
                   setIsDirty(true)
                 }}
                 onMount={(editor, monaco) => {
+                  registerMonacoThemes(monaco)
+                  monaco.editor.setTheme(monacoTheme)
                   contentRef.current = file.content
+                  setEditorContent(file.content)
                   if (isReadOnly) return
                   // Cmd/Ctrl+S — useStore로 최신 atom 값을 항상 읽어서 stale closure 방지
                   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
@@ -282,9 +279,9 @@ export default function EditorArea() {
                 }}
                 options={{
                   readOnly: isReadOnly,
-                  fontSize: 13,
-                  lineHeight: 22,
-                  fontFamily: "'Menlo', 'Monaco', 'Courier New', monospace",
+                  fontSize: editorSettings.fontSize,
+                  lineHeight: Math.round(editorSettings.fontSize * 1.7),
+                  fontFamily: "'JetBrains Mono', 'Menlo', 'Monaco', 'Courier New', monospace",
                   minimap: { enabled: false },
                   scrollBeyondLastLine: false,
                   tabSize: 2,
@@ -325,6 +322,42 @@ export default function EditorArea() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* 버전 메시지 입력 모달 */}
+      {versionMessageOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-bg-secondary border border-border rounded-xl p-6 w-80 shadow-2xl">
+            <h3 className="text-[15px] font-semibold text-text-primary mb-2">버전 저장</h3>
+            <p className="text-[13px] text-text-primary/60 mb-3">변경 메시지를 입력하세요.</p>
+            <input
+              autoFocus
+              value={versionMessage}
+              onChange={(e) => setVersionMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && versionMessage.trim()) handleVersionMessageConfirm()
+                if (e.key === 'Escape') setVersionMessageOpen(false)
+              }}
+              placeholder="예: 기능 추가, 버그 수정..."
+              className="w-full bg-bg-tertiary border border-border rounded-lg px-3 py-2 text-[13px] text-text-primary placeholder:text-text-primary/30 outline-none focus:border-accent/60 mb-4"
+            />
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setVersionMessageOpen(false)}
+                className="px-4 py-1.5 text-[13px] text-text-primary/60 hover:text-text-primary transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleVersionMessageConfirm}
+                disabled={!versionMessage.trim()}
+                className="px-4 py-1.5 text-[13px] bg-accent text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                저장
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

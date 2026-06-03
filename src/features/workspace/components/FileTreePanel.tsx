@@ -30,6 +30,18 @@ interface DragHandlers {
 // VIEWER 권한 여부 — 추후 auth 연동 시 실제 권한으로 교체
 const useIsViewer = () => false
 
+// parentId 필드 대신 트리 구조를 탐색해 실제 부모 ID를 반환
+function findParentId(nodes: FileNode[], id: number, parentId: number | null = null): number | null | undefined {
+  for (const node of nodes) {
+    if (node.id === id) return parentId
+    if (node.children) {
+      const result = findParentId(node.children, id, node.id)
+      if (result !== undefined) return result
+    }
+  }
+  return undefined
+}
+
 // ─── 인라인 입력 (생성/이름 변경) ───────────────────────────────────────────
 
 interface InlineInputProps {
@@ -180,7 +192,7 @@ function FileTreeNode({
   }
 
   const handleRenameConfirm = (name: string) => {
-    onRename(node.id, name)
+    if (name !== node.name) onRename(node.id, name)
     setIsRenaming(false)
   }
 
@@ -418,13 +430,15 @@ export default function FileTreePanel() {
   const { mutate: create } = useCreateFile(projectId)
   const { mutate: rename } = useRenameFile(projectId)
   const { mutate: remove, error: deleteError } = useDeleteFile(projectId)
-  const { mutate: move } = useMoveFile(projectId)
+  const { mutate: move, error: moveError, reset: resetMove } = useMoveFile(projectId)
 
   const [deleteTarget, setDeleteTarget] = useState<FileNode | null>(null)
   const [rootCreatingType, setRootCreatingType] = useState<FileNodeType | null>(null)
 
   const [draggingId, setDraggingId] = useState<number | null>(null)
   const [dropTargetId, setDropTargetId] = useState<number | 'root' | null>(null)
+
+  const isMoveConflict = isApiError(moveError) && moveError.status === 409
 
   const dragHandlers: DragHandlers = {
     draggingId,
@@ -438,9 +452,16 @@ export default function FileTreePanel() {
     },
     onDragOver: (targetId) => setDropTargetId(targetId),
     onDrop: (targetId) => {
-      if (!draggingId) return
+      if (!draggingId || !tree) return
       const newParentId = targetId === 'root' ? null : targetId
-      if (newParentId !== draggingId) move({ fileId: draggingId, newParentId })
+
+      const currentParentId = findParentId(tree, draggingId)
+      const isSameParent = currentParentId === newParentId
+      const isSelf = newParentId === draggingId
+
+      if (!isSameParent && !isSelf) {
+        move({ fileId: draggingId, newParentId })
+      }
       setDraggingId(null)
       setDropTargetId(null)
     },
@@ -581,6 +602,26 @@ export default function FileTreePanel() {
           onConfirm={handleDeleteConfirm}
           onCancel={() => setDeleteTarget(null)}
         />
+      )}
+
+      {/* 이동 실패 안내 */}
+      {isMoveConflict && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-bg-secondary border border-border rounded-xl p-6 w-72 shadow-2xl">
+            <h3 className="text-[15px] font-semibold text-text-primary mb-2">이동 실패</h3>
+            <p className="text-[13px] text-text-primary/60 mb-5 leading-relaxed">
+              {isApiError(moveError) ? moveError.message : '파일을 이동할 수 없습니다.'}
+            </p>
+            <div className="flex justify-end">
+              <button
+                onClick={resetMove}
+                className="px-4 py-1.5 text-[13px] bg-accent text-white rounded-lg hover:opacity-90 transition-opacity"
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* 삭제 충돌 안내 */}

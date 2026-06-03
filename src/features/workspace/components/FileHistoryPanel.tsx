@@ -7,7 +7,7 @@ import { useFileVersion } from '../hooks/useFileVersion'
 import { useFileVersionDiff } from '../hooks/useFileVersionDiff'
 import { useFileVersions } from '../hooks/useFileVersions'
 import { useRestoreWithConfirm } from '../hooks/useRestoreWithConfirm'
-import { openFileIdAtom } from '../stores/openFileAtom'
+import { baseRevisionAtom, openFileIdAtom } from '../stores/openFileAtom'
 
 // VIEWER 권한 여부 — 추후 auth 연동 시 실제 권한으로 교체
 const useIsViewer = () => false
@@ -37,6 +37,7 @@ const AVATAR_COLORS = [
 export default function FileHistoryPanel() {
   const { projectId = '' } = useParams<{ projectId: string }>()
   const fileId = useAtomValue(openFileIdAtom)
+  const baseRevision = useAtomValue(baseRevisionAtom)
   const isViewer = useIsViewer()
 
   const {
@@ -62,8 +63,8 @@ export default function FileHistoryPanel() {
   const { data: diff } = useFileVersionDiff(projectId, fileId, prevVersion?.id ?? null, effectiveId)
 
   const contentLines = versionDetail?.content.split('\n') ?? []
-  const addedCount = diff?.lines.filter((l) => l.type === 'ADDED').length ?? 0
-  const removedCount = diff?.lines.filter((l) => l.type === 'REMOVED').length ?? 0
+  const addedCount = diff?.addedLines ?? 0
+  const removedCount = diff?.removedLines ?? 0
 
   const total = versions.length
   const confirmVersion =
@@ -289,7 +290,11 @@ export default function FileHistoryPanel() {
                 취소
               </button>
               <button
-                onClick={() => fileId && confirmRestore(fileId, `v${confirmVersion.version}`)}
+                onClick={() =>
+                  fileId &&
+                  baseRevision !== null &&
+                  confirmRestore(fileId, `v${confirmVersion.version}`, baseRevision)
+                }
                 disabled={isRestoring}
                 className="px-4 py-1.5 text-[13px] bg-accent text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
               >

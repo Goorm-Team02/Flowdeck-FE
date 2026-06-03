@@ -30,38 +30,37 @@ export const authService = {
     return res.data.data;
   },
 
-  // 로그인 (Axios를 통해 스트림 드레인을 방지하고 토큰 및 프로필을 즉각 통합 반환)
+  // 로그인
   login: async (data: { email: string; password?: string }) => {
     const res = await apiClient.post<ApiResponse<{ accessToken: string; refreshToken: string }>>("/api/auth/login", data);
 
-    // 수신된 실제 토큰들을 공동 저장 공간에 주입합니다.
-    tokenStorage.setTokens(res.data.data.accessToken, res.data.data.refreshToken || "");
+    const { accessToken, refreshToken } = res.data.data
+    tokenStorage.setTokens(accessToken, refreshToken || "");
 
-    // 즉시 세션 프로필 정보를 가져옵니다.
-    const userProfile = await authService.getMyInfo();
+    const user = await authService.getMyInfo();
 
     return {
       message: "로그인 성공",
-      accessToken: res.data.data.accessToken,
-      user: userProfile
+      accessToken,
+      user,
     };
   },
 
   // 내 정보 조회
   getMyInfo: async () => {
-    const res = await apiClient.get<ApiResponse<User>>("/api/auth/me");
+    const res = await apiClient.get<ApiResponse<User>>("/api/users/me");
     return res.data.data;
   },
 
   // 프로필 정보 수정
   updateProfile: async (name: string) => {
-    const res = await apiClient.put<ApiResponse<{ message: string; name: string }>>("/api/auth/profile", { name });
+    const res = await apiClient.patch<ApiResponse<{ message: string; name: string }>>("/api/users/me", { name });
     return res.data.data;
   },
 
   // 회원 탈퇴
   deleteAccount: async () => {
-    const res = await apiClient.delete<ApiResponse<{ message: string }>>("/api/auth/profile");
+    const res = await apiClient.delete<ApiResponse<{ message: string }>>("/api/users/me");
     tokenStorage.clear();
     return res.data.data;
   }
@@ -69,9 +68,14 @@ export const authService = {
 
 // Project Service (대시보드 및 실물 API 제어)
 export const projectService = {
+  getMyProjects: async (): Promise<Project[]> => {
+    const res = await apiClient.get<ApiResponse<{ projects: Project[] }>>("/api/projects");
+    return res.data.data.projects ?? []
+  },
+
   getPublicProjects: async (): Promise<Project[]> => {
-    const res = await apiClient.get<ApiResponse<Project[]>>("/api/projects");
-    return res.data.data;
+    const res = await apiClient.get<ApiResponse<{ projects: Project[] }>>("/api/projects/public");
+    return res.data.data.projects ?? []
   },
 
   createProject: async (data: {
@@ -88,7 +92,7 @@ export const projectService = {
     projectId: string,
     data: { title?: string; description?: string; visibility?: "PUBLIC" | "PRIVATE" }
   ): Promise<Project> => {
-    const res = await apiClient.put<ApiResponse<Project>>(`/api/projects/${projectId}`, data);
+    const res = await apiClient.patch<ApiResponse<Project>>(`/api/projects/${projectId}`, data);
     return res.data.data;
   },
 

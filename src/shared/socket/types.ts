@@ -9,12 +9,20 @@ export const TOPICS = {
   PRESENCE: (projectId: string) => `/topic/projects/${projectId}/presence`,
   FILES: (projectId: string) => `/topic/projects/${projectId}/files`,
   MEMBERS: (projectId: string) => `/topic/projects/${projectId}/members`,
+  FILE_EDITING: (projectId: string, fileId: number) =>
+    `/topic/projects/${projectId}/files/${fileId}/editing`,
 } as const
 
 export const DESTINATIONS = {
   MESSAGE_SEND: (projectId: string) => `/app/projects/${projectId}/messages`,
   PRESENCE_JOIN: (projectId: string) => `/app/projects/${projectId}/presence/join`,
   PRESENCE_HEARTBEAT: (projectId: string) => `/app/projects/${projectId}/presence/heartbeat`,
+  FILE_EDITING_START: (projectId: string, fileId: number) =>
+    `/app/projects/${projectId}/files/${fileId}/editing/start`,
+  FILE_EDITING_HEARTBEAT: (projectId: string, fileId: number) =>
+    `/app/projects/${projectId}/files/${fileId}/editing/heartbeat`,
+  FILE_EDITING_STOP: (projectId: string, fileId: number) =>
+    `/app/projects/${projectId}/files/${fileId}/editing/stop`,
 } as const
 
 // ─── 채팅 ─────────────────────────────────────────────────────────────────────
@@ -66,6 +74,38 @@ export interface ProjectMemberEventResponse {
   memberId: number
   userId: string
   newRole?: 'OWNER' | 'EDITOR' | 'VIEWER'
+}
+
+// 개인 큐 — 본인 권한 변경 알림
+export const PERSONAL_TOPICS = {
+  MEMBER_ROLE: '/user/queue/project-members',
+} as const
+
+export type PersonalMemberEventType = 'MEMBER_ROLE_CHANGED'
+
+export interface PersonalMemberRoleChangedResponse {
+  eventType: PersonalMemberEventType
+  projectId: string
+  memberId: number
+  userId: string
+  previousRole: 'OWNER' | 'EDITOR' | 'VIEWER'
+  currentRole: 'OWNER' | 'EDITOR' | 'VIEWER'
+  actorId: number
+  actorName: string
+  occurredAt: string
+}
+
+// ─── 파일 편집 Presence ───────────────────────────────────────────────────────
+
+export interface FileEditingPresenceResponse {
+  projectId: string
+  fileId: number
+  editing: boolean
+  editorId: number | null
+  editorName: string | null
+  editorSessionId: string | null
+  lastSeenAt: string | null
+  occurredAt: string
 }
 
 // ─── 파일 이벤트 ──────────────────────────────────────────────────────────────

@@ -1,15 +1,20 @@
 import { 
-  Plus, List, X, Settings, Users, Globe, LogOut, Terminal, 
+  Plus, List, X, Settings, Globe, LogOut, Terminal, 
   ArrowUpRight, Edit3, Trash2, User, Check, AlertCircle
 } from "lucide-react";
 import { useState, useEffect, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 
+import { useAtom } from 'jotai'
+
 import { useAuthStore } from '@/features/auth/authStore'
 import { projectService } from '@/features/auth/api/customApi'
 import type { Project, ProjectMember } from '@/features/auth/authTypes'
+import { THEMES, applyTheme, getStoredTheme } from '@/shared/lib/theme'
+import type { ThemeName } from '@/shared/lib/theme'
+import { editorSettingsAtom } from '@/shared/stores/editorSettingsAtom'
 
-type TabType = "my" | "shared" | "public" | "mypage" | "settings";
+type TabType = "my" | "public" | "mypage" | "settings";
 
 interface RichProject extends Project {
   members: ProjectMember[];
@@ -27,7 +32,6 @@ export default function ProjectListPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [visibility, setVisibility] = useState<"PUBLIC" | "PRIVATE">("PRIVATE");
-  const [invitedEmailsStr, setInvitedEmailsStr] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,9 +51,14 @@ export default function ProjectListPage() {
   const [profileName, setProfileName] = useState("");
   const [isSavingName, setIsSavingName] = useState(false);
 
-  // Settings mock states
-  const [editorTheme, setEditorTheme] = useState("one-dark");
-  const [fontSize, setFontSize] = useState(14);
+  const [editorTheme, setEditorTheme] = useState<ThemeName>(() => getStoredTheme());
+  const [editorSettings, setEditorSettings] = useAtom(editorSettingsAtom);
+
+  const handleThemeChange = (theme: ThemeName) => {
+    setEditorTheme(theme)
+    applyTheme(theme)
+    setEditorSettings(prev => ({ ...prev, monacoTheme: theme }))
+  };
 
   const navigate = useNavigate();
 
@@ -64,40 +73,23 @@ export default function ProjectListPage() {
   // Load All Projects along with their Member structures
   const syncServerProjects = async () => {
     if (!isLoggedIn || !user) return;
+    if (activeTab === 'mypage' || activeTab === 'settings') return;
     setIsLoading(true);
     try {
-      // 1. Fetch accessible projects
-      const baseProjects = await projectService.getPublicProjects();
-      
-      // 2. Wrap each project with its member list fetched from real server
-      const wrapped: RichProject[] = await Promise.all(
-        baseProjects.map(async (proj) => {
-          try {
-            const members = await projectService.getProjectMembers(proj.id);
-            const owner = members.find(m => m.role === "OWNER");
-            const meAsMember = members.find(m => m.email.toLowerCase() === user.email.toLowerCase());
-            
-            return {
-              ...proj,
-              members,
-              ownerName: owner ? owner.name : "관리자",
-              ownerEmail: owner ? owner.email : "admin@flowdeck.io",
-              isMyProject: owner ? owner.email.toLowerCase() === user.email.toLowerCase() : false,
-              statusForMe: meAsMember ? meAsMember.status : "NONE",
-            };
-          } catch (mErr) {
-            // Fallback if permission lacks or server fails
-            return {
-              ...proj,
-              members: [],
-              ownerName: "비공개",
-              ownerEmail: "",
-              isMyProject: false,
-              statusForMe: "NONE",
-            };
-          }
-        })
-      );
+      // 1. Fetch projects by tab type
+      const baseProjects = activeTab === 'public'
+        ? await projectService.getPublicProjects()
+        : await projectService.getMyProjects();
+
+      // 2. 프로젝트 데이터만으로 RichProject 구성 (멤버 API 불필요)
+      const wrapped: RichProject[] = baseProjects.map((proj) => ({
+        ...proj,
+        members: [],
+        ownerName: "",
+        ownerEmail: "",
+        isMyProject: activeTab !== 'public',
+        statusForMe: "NONE" as const,
+      }));
 
       setRichProjects(wrapped);
     } catch (err) {
@@ -118,7 +110,6 @@ export default function ProjectListPage() {
     try {
       await updateProfile(profileName.trim());
       alert("사용자 정보(이름)가 성공적으로 변경되었습니다!");
-      await syncServerProjects();
     } catch (err: any) {
       alert(err.message || "이름 변경에 실패했습니다.");
     } finally {
@@ -148,16 +139,10 @@ export default function ProjectListPage() {
     setIsCreating(true);
 
     try {
-      const emails = invitedEmailsStr
-        .split(/[,\n]/)
-        .map(email => email.trim())
-        .filter(email => email.length > 0 && email.includes("@"));
-
       await projectService.createProject({
         title,
         visibility,
         description,
-        invitedEmails: emails,
       });
 
       await syncServerProjects();
@@ -166,7 +151,6 @@ export default function ProjectListPage() {
       setTitle("");
       setDescription("");
       setVisibility("PRIVATE");
-      setInvitedEmailsStr("");
       alert("프로젝트가 성공적으로 창설되었습니다!");
     } catch (err: any) {
       console.error("Failed to create project:", err);
@@ -249,10 +233,6 @@ export default function ProjectListPage() {
       // All PUBLIC projects
       return richProjects.filter(p => p.visibility === "PUBLIC");
     }
-    if (activeTab === "shared") {
-      // Projects where user is a member (either PENDING or ACCEPTED) but NOT Owner
-      return richProjects.filter(p => !p.isMyProject && p.statusForMe !== "NONE");
-    }
     // "my" tab -> User is Owner of the project
     return richProjects.filter(p => p.isMyProject);
   };
@@ -260,14 +240,14 @@ export default function ProjectListPage() {
   const displayedProjects = getFilteredProjects();
 
   return (
-    <div className="flex flex-col h-screen w-full bg-zinc-950 text-zinc-100 overflow-hidden font-sans">
+    <div className="flex flex-col h-screen w-full bg-bg-deep text-text-primary overflow-hidden font-sans">
       {/* Top Header */}
-      <header id="app_header" className="h-14 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-6 shrink-0">
+      <header id="app_header" className="h-14 bg-bg-secondary border-b border-border flex items-center justify-between px-6 shrink-0">
         <div className="flex items-center gap-4">
-          <div className="w-8 h-8 bg-indigo-600 rounded flex items-center justify-center font-bold text-white shadow-inner">F</div>
-          <h1 className="text-lg font-semibold tracking-tight text-white flex items-center gap-2">
+          <img src="/favicon.svg" alt="Flowdeck" className="w-8 h-8" />
+          <h1 className="text-lg font-semibold tracking-tight text-text-primary flex items-center gap-2">
             Flowdeck 
-            <span className="text-[10px] bg-indigo-500/20 text-indigo-400 font-semibold px-2 py-0.5 rounded-full border border-indigo-500/30">
+            <span className="text-[10px] bg-accent/20 text-accent font-semibold px-2 py-0.5 rounded-full border border-accent/30">
               네트워크 온라인
             </span>
           </h1>
@@ -276,20 +256,20 @@ export default function ProjectListPage() {
         <div className="flex items-center gap-6">
           <div className="hidden lg:flex items-center gap-2">
             <div className="w-2 h-2 bg-emerald-500 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.6)]"></div>
-            <span className="text-xs text-zinc-400">실시간 데이터베이스 결합 엔진 활성화 (Port: 3000)</span>
+            <span className="text-xs text-text-muted">실시간 데이터베이스 결합 엔진 활성화 (Port: 3000)</span>
           </div>
-          <div className="h-8 w-[1px] bg-zinc-800"></div>
+          <div className="h-8 w-[1px] bg-bg-tertiary"></div>
           <div className="flex items-center gap-3">
             <div className="flex flex-col items-end">
-              <span className="text-sm font-semibold text-white">{user?.name}</span>
-              <span className="text-[10px] text-zinc-400">{user?.email}</span>
+              <span className="text-sm font-semibold text-text-primary">{user?.name}</span>
+              <span className="text-[10px] text-text-muted">{user?.email}</span>
             </div>
             <button 
               onClick={() => {
                 logout();
                 navigate("/login");
               }}
-              className="flex items-center gap-2 px-3 py-1.5 text-xs border border-zinc-800 rounded hover:bg-zinc-800 transition-colors text-zinc-400 hover:text-white font-medium cursor-pointer"
+              className="flex items-center gap-2 px-3 py-1.5 text-xs border border-border rounded hover:bg-bg-tertiary transition-colors text-text-muted hover:text-text-primary font-medium cursor-pointer"
             >
               <LogOut size={13} />
               로그아웃
@@ -301,96 +281,83 @@ export default function ProjectListPage() {
       {/* Main Body Layout */}
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar Nav */}
-        <aside id="sidebar_nav" className="w-64 bg-zinc-900 border-r border-zinc-800 flex flex-col p-4 shrink-0 justify-between">
+        <aside id="sidebar_nav" className="w-64 bg-bg-secondary border-r border-border flex flex-col p-4 shrink-0 justify-between">
           <div className="space-y-6">
             <div>
-              <p className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase mb-3 px-3">협업 공간 디렉토리</p>
+              <p className="text-[10px] font-bold text-text-muted/70 tracking-widest uppercase mb-3 px-3">협업 공간 디렉토리</p>
               <nav className="space-y-1">
                 <button 
                   onClick={() => setActiveTab("my")}
                   className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium flex items-center gap-3 transition-colors cursor-pointer ${
                     activeTab === "my" 
-                      ? "bg-zinc-800 text-white border-l-2 border-indigo-500" 
-                      : "text-zinc-400 hover:bg-zinc-800/40 hover:text-white"
+                      ? "bg-bg-tertiary text-text-primary border-l-2 border-accent" 
+                      : "text-text-muted hover:bg-bg-tertiary/40 hover:text-text-primary"
                   }`}
                 >
-                  <List size={16} className={activeTab === "my" ? "text-indigo-400" : ""} />
+                  <List size={16} className={activeTab === "my" ? "text-accent" : ""} />
                   내 프로젝트 (My Workspace)
                 </button>
-                <button 
-                  onClick={() => setActiveTab("shared")}
-                  className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium flex items-center gap-3 transition-colors cursor-pointer ${
-                    activeTab === "shared" 
-                      ? "bg-zinc-800 text-white border-l-2 border-indigo-500" 
-                      : "text-zinc-400 hover:bg-zinc-800/40 hover:text-white"
-                  }`}
-                >
-                  <Users size={16} className={activeTab === "shared" ? "text-indigo-400" : ""} />
-                  공유받은 초대 정황 (Shared)
-                </button>
-                <button 
+                <button
                   onClick={() => setActiveTab("public")}
                   className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium flex items-center gap-3 transition-colors cursor-pointer ${
                     activeTab === "public" 
-                      ? "bg-zinc-800 text-white border-l-2 border-indigo-500" 
-                      : "text-zinc-400 hover:bg-zinc-800/40 hover:text-white"
+                      ? "bg-bg-tertiary text-text-primary border-l-2 border-accent" 
+                      : "text-text-muted hover:bg-bg-tertiary/40 hover:text-text-primary"
                   }`}
                 >
-                  <Globe size={16} className={activeTab === "public" ? "text-indigo-400" : ""} />
+                  <Globe size={16} className={activeTab === "public" ? "text-accent" : ""} />
                   공개 프로젝트 (Public)
                 </button>
                 <button 
                   onClick={() => setActiveTab("mypage")}
                   className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium flex items-center gap-3 transition-colors cursor-pointer ${
                     activeTab === "mypage" 
-                      ? "bg-zinc-800 text-white border-l-2 border-indigo-500" 
-                      : "text-zinc-400 hover:bg-zinc-800/40 hover:text-white"
+                      ? "bg-bg-tertiary text-text-primary border-l-2 border-accent" 
+                      : "text-text-muted hover:bg-bg-tertiary/40 hover:text-text-primary"
                   }`}
                 >
-                  <User size={16} className={activeTab === "mypage" ? "text-indigo-400" : ""} />
+                  <User size={16} className={activeTab === "mypage" ? "text-accent" : ""} />
                   마이페이지 (My Page)
                 </button>
                 <button 
                   onClick={() => setActiveTab("settings")}
                   className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium flex items-center gap-3 transition-colors cursor-pointer ${
                     activeTab === "settings" 
-                      ? "bg-zinc-800 text-white border-l-2 border-indigo-500" 
-                      : "text-zinc-400 hover:bg-zinc-800/40 hover:text-white"
+                      ? "bg-bg-tertiary text-text-primary border-l-2 border-accent" 
+                      : "text-text-muted hover:bg-bg-tertiary/40 hover:text-text-primary"
                   }`}
                 >
-                  <Settings size={16} className={activeTab === "settings" ? "text-indigo-400" : ""} />
+                  <Settings size={16} className={activeTab === "settings" ? "text-accent" : ""} />
                   IDE 환경 설정 (Settings)
                 </button>
               </nav>
             </div>
           </div>
-          <div className="p-3 bg-zinc-950/80 rounded-lg border border-zinc-800/80 text-[11px] text-zinc-500">
-            <p className="font-semibold text-zinc-300">💡 정보 안내</p>
+          <div className="p-3 bg-bg-deep/80 rounded-lg border border-border/80 text-[11px] text-text-muted/70">
+            <p className="font-semibold text-text-primary/70">💡 정보 안내</p>
             <p className="mt-1 leading-relaxed">서버의 인메모리 DB를 탐색 중이므로 본 데모상 모든 수정/생성/삭제가 백엔드에 다이렉트로 반영됩니다.</p>
           </div>
         </aside>
 
         {/* Dashboard Work Area */}
-        <main className="flex-1 overflow-y-auto p-8 lg:p-10 bg-zinc-950">
-          {(activeTab === "my" || activeTab === "shared" || activeTab === "public") && (
+        <main className="flex-1 overflow-y-auto p-8 lg:p-10 bg-bg-deep">
+          {(activeTab === "my" || activeTab === "public") && (
             <>
               {/* Hero Header */}
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 pb-6 border-b border-zinc-900">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 pb-6 border-b border-border/50">
                 <div className="max-w-xl">
-                  <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">
+                  <h2 className="text-2xl font-bold text-text-primary mb-2 tracking-tight">
                     {activeTab === "my" && "내 협업 워크스페이스"}
-                    {activeTab === "shared" && "공유 및 초대 정보 허브"}
                     {activeTab === "public" && "공개 프로젝트 디렉토리"}
                   </h2>
-                  <p className="text-sm text-zinc-400 leading-relaxed">
+                  <p className="text-sm text-text-muted leading-relaxed">
                     {activeTab === "my" && "서버단에 실시간 동기화되는 나만의 단독 저장소 공간을 구성하고 관리합니다."}
-                    {activeTab === "shared" && "귀하를 협업 파트너(EDITOR)로 지정해 둔 다른 개발자의 프로젝트 목록 및 초대 정황입니다."}
                     {activeTab === "public" && "Flowdeck 네트워크 환경 전체 구성원들에게 자유롭게 개방된 오픈소스 모듈 목록입니다."}
                   </p>
                 </div>
                 <button 
                   onClick={() => setIsModalOpen(true)}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white rounded-md font-semibold hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-600/10 active:scale-95 shrink-0 cursor-pointer"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-accent text-text-primary rounded-md font-semibold hover:bg-accent/85 transition-all shadow-lg shadow-accent/10 active:scale-95 shrink-0 cursor-pointer"
                 >
                   <Plus size={18} />
                   새 프로젝트 생성
@@ -400,14 +367,14 @@ export default function ProjectListPage() {
               {/* Loader */}
               {isLoading ? (
                 <div className="flex flex-col items-center justify-center py-24 gap-3">
-                  <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-                  <span className="text-sm text-zinc-400 font-medium">Flowdeck 데이터베이스 연결 및 위빙 중...</span>
+                  <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>
+                  <span className="text-sm text-text-muted font-medium">Flowdeck 데이터베이스 연결 및 위빙 중...</span>
                 </div>
               ) : displayedProjects.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 border border-dashed border-zinc-800 rounded-xl bg-zinc-900/10 w-full text-center">
-                  <AlertCircle size={24} className="text-zinc-600 mb-3" />
-                  <p className="text-sm text-zinc-400 mb-4">해당 카테고리에 할당된 프로젝트가 발견되지 않았습니다.</p>
-                  <button onClick={() => setIsModalOpen(true)} className="text-xs text-indigo-400 font-semibold hover:underline cursor-pointer">
+                <div className="flex flex-col items-center justify-center py-20 border border-dashed border-border rounded-xl bg-bg-secondary/10 w-full text-center">
+                  <AlertCircle size={24} className="text-text-muted/50 mb-3" />
+                  <p className="text-sm text-text-muted mb-4">해당 카테고리에 할당된 프로젝트가 발견되지 않았습니다.</p>
+                  <button onClick={() => setIsModalOpen(true)} className="text-xs text-accent font-semibold hover:underline cursor-pointer">
                     프로젝트 추가 생성으로 시작해보기 →
                   </button>
                 </div>
@@ -420,14 +387,14 @@ export default function ProjectListPage() {
                       <div 
                         key={project.id} 
                         onClick={() => handleCardClick(project)}
-                        className={`bg-zinc-900 border rounded-xl p-6 transition-all cursor-pointer group flex flex-col shadow-lg hover:scale-[1.01] transform duration-150 relative ${
+                        className={`bg-bg-secondary border rounded-xl p-6 transition-all cursor-pointer group flex flex-col shadow-lg hover:scale-[1.01] transform duration-150 relative ${
                           isPending 
                             ? "border-amber-600/40 shadow-[0_0_12px_rgba(245,158,11,0.08)] bg-amber-500/[0.01]" 
-                            : "border-zinc-800 hover:border-indigo-500"
+                            : "border-border hover:border-accent"
                         }`}
                       >
                         <div className="flex items-start justify-between mb-4">
-                          <div className="w-10 h-10 bg-zinc-950 rounded-lg flex items-center justify-center text-xl shadow-inner border border-zinc-800">
+                          <div className="w-10 h-10 bg-bg-deep rounded-lg flex items-center justify-center text-xl shadow-inner border border-border">
                             {project.visibility === "PUBLIC" ? "🌐" : "🔒"}
                           </div>
                           
@@ -437,72 +404,67 @@ export default function ProjectListPage() {
                                 초대 승인 대기
                               </span>
                             )}
-                            <span className="px-2 py-0.5 bg-zinc-950 border border-zinc-800 rounded text-[9.5px] text-zinc-400 uppercase tracking-widest font-semibold">
-                              {project.visibility === "PUBLIC" ? "Public" : "Private"}
-                            </span>
                           </div>
                         </div>
                         
-                        <h3 className="text-lg font-bold text-white mb-2 group-hover:text-indigo-400 transition-colors flex items-center justify-between">
+                        <h3 className="text-lg font-bold text-text-primary mb-2 group-hover:text-accent transition-colors flex items-center justify-between">
                           {project.title}
                           {!isPending && (
-                            <ArrowUpRight size={15} className="opacity-0 group-hover:opacity-100 transition-opacity text-indigo-400" />
+                            <ArrowUpRight size={15} className="opacity-0 group-hover:opacity-100 transition-opacity text-accent" />
                           )}
                         </h3>
                         
-                        <p className="text-sm text-zinc-400 flex-1 line-clamp-2 mb-6 leading-relaxed">
+                        <p className="text-sm text-text-muted flex-1 line-clamp-2 mb-6 leading-relaxed">
                           {project.description || "이 프로젝트에는 설명이 없습니다."}
                         </p>
                         
-                        <div className="flex items-center justify-between pt-4 border-t border-zinc-800 mt-auto text-xs">
-                          <div className="flex flex-col">
-                            <span className="text-[10px] text-zinc-500 uppercase">창설주식(Owner)</span>
-                            <span className="text-zinc-200 font-medium truncate max-w-[120px]">{project.ownerName}</span>
-                          </div>
-                          
+                        <div className="flex items-center justify-between pt-4 border-t border-border mt-auto text-xs">
+                          <span className={`text-[10px] px-2 py-1 rounded border font-medium ${
+                            project.visibility === 'PUBLIC'
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                              : 'bg-bg-deep text-text-muted/70 border-border'
+                          }`}>
+                            {project.visibility === 'PUBLIC' ? 'PUBLIC' : 'PRIVATE'}
+                          </span>
+
                           <div className="flex items-center gap-2.5">
-                            {/* OWNER options (Modify and Delete) */}
                             {project.isMyProject && (
                               <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                                 <button
                                   onClick={(e) => openEditModal(project, e)}
-                                  title="프로젝트 설정 조율"
-                                  className="p-1.5 hover:bg-zinc-800 hover:text-indigo-400 rounded-md text-zinc-400 border border-transparent hover:border-zinc-700 transition-all cursor-pointer"
+                                  title="프로젝트 설정"
+                                  className="p-1.5 hover:bg-bg-tertiary hover:text-accent rounded-md text-text-muted border border-transparent hover:border-border/60 transition-all cursor-pointer"
                                 >
                                   <Edit3 size={13} />
                                 </button>
                                 <button
                                   onClick={(e) => handleDeleteProject(project.id, e)}
-                                  title="프로젝트 영구 삭제"
-                                  className="p-1.5 hover:bg-zinc-800 hover:text-red-400 rounded-md text-zinc-400 border border-transparent hover:border-zinc-700 transition-all cursor-pointer"
+                                  title="프로젝트 삭제"
+                                  className="p-1.5 hover:bg-bg-tertiary hover:text-red-400 rounded-md text-text-muted border border-transparent hover:border-border/60 transition-all cursor-pointer"
                                 >
                                   <Trash2 size={13} />
                                 </button>
                               </div>
                             )}
-
-                            <span className="text-[10px] bg-zinc-950 text-zinc-500 px-2 py-1 rounded border border-zinc-800">
-                              팀원 {project.members.length}명
-                            </span>
                           </div>
                         </div>
 
                         {/* Interactive Acceptance block for pending invitation */}
                         {isPending && (
                           <div 
-                            className="flex gap-2 mt-4 pt-4 border-t border-zinc-800/80" 
+                            className="flex gap-2 mt-4 pt-4 border-t border-border/80" 
                             onClick={(e) => e.stopPropagation()}
                           >
                             <button
                               onClick={(e) => handleRespondToInvite(project.id, true, e)}
-                              className="flex-1 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1"
+                              className="flex-1 py-1.5 bg-accent hover:bg-accent/85 text-text-primary text-xs font-semibold rounded-lg shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1"
                             >
                               <Check size={12} />
                               초대 승인(수락)
                             </button>
                             <button
                               onClick={(e) => handleRespondToInvite(project.id, false, e)}
-                              className="flex-1 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white text-xs font-semibold rounded-lg border border-zinc-700 transition-all active:scale-95 cursor-pointer"
+                              className="flex-1 py-1.5 bg-bg-tertiary hover:bg-bg-tertiary/80 text-text-muted hover:text-text-primary text-xs font-semibold rounded-lg border border-border/60 transition-all active:scale-95 cursor-pointer"
                             >
                               거절
                             </button>
@@ -514,12 +476,12 @@ export default function ProjectListPage() {
 
                   <div 
                     onClick={() => setIsModalOpen(true)}
-                    className="bg-transparent border-2 border-dashed border-zinc-800 rounded-xl p-6 flex flex-col items-center justify-center text-zinc-500 hover:bg-zinc-900/30 hover:border-indigo-500 transition-all cursor-pointer min-h-[190px] group"
+                    className="bg-transparent border-2 border-dashed border-border rounded-xl p-6 flex flex-col items-center justify-center text-text-muted/70 hover:bg-bg-secondary/30 hover:border-accent transition-all cursor-pointer min-h-[190px] group"
                   >
-                    <div className="w-10 h-10 rounded-full border border-dashed border-zinc-700 flex items-center justify-center mb-3 group-hover:border-indigo-500 group-hover:text-indigo-400 transition-all">
+                    <div className="w-10 h-10 rounded-full border border-dashed border-border/60 flex items-center justify-center mb-3 group-hover:border-accent group-hover:text-accent transition-all">
                       <Plus size={20} />
                     </div>
-                    <span className="text-sm font-medium group-hover:text-white transition-colors">새 협업 프로젝트 구상 및 추가</span>
+                    <span className="text-sm font-medium group-hover:text-text-primary transition-colors">새 협업 프로젝트 구상 및 추가</span>
                   </div>
                 </div>
               )}
@@ -528,33 +490,33 @@ export default function ProjectListPage() {
 
           {/* TAB 4: MY PAGE */}
           {activeTab === "mypage" && (
-            <div className="max-w-2xl bg-zinc-900 rounded-xl p-8 border border-zinc-800 shadow-xl">
-              <h2 className="text-xl font-bold text-white mb-2 tracking-tight flex items-center gap-2">
-                <User size={20} className="text-indigo-400" />
+            <div className="max-w-2xl bg-bg-secondary rounded-xl p-8 border border-border shadow-xl">
+              <h2 className="text-xl font-bold text-text-primary mb-2 tracking-tight flex items-center gap-2">
+                <User size={20} className="text-accent" />
                 마이페이지 (프로필 제어 콘솔)
               </h2>
-              <p className="text-xs text-zinc-400 mb-6">시스템의 로컬 계정 설정 상태와 실시간 데이터베이스 위빙 정보를 처리합니다.</p>
+              <p className="text-xs text-text-muted mb-6">시스템의 로컬 계정 설정 상태와 실시간 데이터베이스 위빙 정보를 처리합니다.</p>
 
               <form onSubmit={handleUpdateName} className="space-y-6">
                 <div>
-                  <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">활성 계정 (이메일)</label>
+                  <label className="block text-xs font-bold text-text-muted uppercase tracking-widest mb-2">활성 계정 (이메일)</label>
                   <input 
                     type="text" 
                     disabled 
                     value={user?.email || ""} 
-                    className="w-full rounded-md bg-zinc-950 border border-zinc-800 p-3 text-sm text-zinc-500 cursor-not-allowed outline-none"
+                    className="w-full rounded-md bg-bg-deep border border-border p-3 text-sm text-text-muted/70 cursor-not-allowed outline-none"
                   />
-                  <span className="text-[10px] text-zinc-500 mt-1 block">계정 이메일은 변경이 불가합니다.</span>
+                  <span className="text-[10px] text-text-muted/70 mt-1 block">계정 이메일은 변경이 불가합니다.</span>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">사용자 닉네임 / 성명</label>
+                  <label className="block text-xs font-bold text-text-muted uppercase tracking-widest mb-2">사용자 닉네임 / 성명</label>
                   <input 
                     type="text" 
                     required 
                     value={profileName} 
                     onChange={(e) => setProfileName(e.target.value)}
-                    className="w-full rounded-md bg-zinc-950 border border-zinc-800 p-3 text-sm text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
+                    className="w-full rounded-md bg-bg-deep border border-border p-3 text-sm text-text-primary focus:border-accent focus:ring-1 focus:ring-accent outline-none transition-all"
                   />
                 </div>
 
@@ -562,16 +524,16 @@ export default function ProjectListPage() {
                   <button 
                     type="submit" 
                     disabled={isSavingName || !profileName.trim()}
-                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded font-bold text-xs cursor-pointer shadow transition-all active:scale-[0.98] disabled:opacity-50"
+                    className="px-5 py-2.5 bg-accent hover:bg-accent/85 text-text-primary rounded font-bold text-xs cursor-pointer shadow transition-all active:scale-[0.98] disabled:opacity-50"
                   >
                     {isSavingName ? "서버 저장 중..." : "실시간 이름 수정 적용"}
                   </button>
                 </div>
               </form>
 
-              <div className="border-t border-zinc-800 mt-8 pt-6 space-y-4">
+              <div className="border-t border-border mt-8 pt-6 space-y-4">
                 <p className="text-xs font-bold text-red-400 uppercase tracking-widest">🚨 계정 폐기(회원 탈퇴)</p>
-                <p className="text-xs text-zinc-400 leading-relaxed">
+                <p className="text-xs text-text-muted leading-relaxed">
                   회원 탈퇴 처리 시 서버 시스템 내 잔여된 모든 프로젝트 협업 매업 데이터가 파기 처리되며, 연관 기록은 즉시 말소됩니다.
                 </p>
                 <button 
@@ -586,50 +548,66 @@ export default function ProjectListPage() {
 
           {/* TAB 5: SETTINGS */}
           {activeTab === "settings" && (
-            <div className="max-w-2xl bg-zinc-900 rounded-xl p-8 border border-zinc-800 shadow-xl space-y-8">
+            <div className="max-w-2xl space-y-6">
               <div>
-                <h2 className="text-xl font-bold text-white mb-2 tracking-tight flex items-center gap-2">
-                  <Terminal size={20} className="text-indigo-400" />
-                  IDE 환경 설정 및 시뮬레이터 테마
+                <h2 className="text-xl font-bold text-text-primary mb-1 tracking-tight flex items-center gap-2">
+                  <Terminal size={20} className="text-accent" />
+                  IDE 환경 설정
                 </h2>
-                <p className="text-xs text-zinc-400">코드 에디터 서체, 구문 강조 테마 및 렌더 가독성 옵션을 설정합니다.</p>
+                <p className="text-xs text-text-muted">앱 전체에 적용되는 색상 테마와 에디터 서체 크기를 설정합니다.</p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">구문 가동성 하이라이트</label>
-                  <select 
-                    value={editorTheme} 
-                    onChange={(e) => setEditorTheme(e.target.value)}
-                    className="w-full rounded-md bg-zinc-950 border border-zinc-800 p-3 text-xs focus:border-indigo-500 text-white outline-none cursor-pointer"
-                  >
-                    <option value="one-dark">Atom One Dark (기본 및 추천)</option>
-                    <option value="monokai">Monokai VS-Classic</option>
-                    <option value="dracula">Dracula Immersive Premium</option>
-                  </select>
+              {/* 테마 선택 카드 */}
+              <div className="bg-bg-secondary rounded-xl p-6 border border-border">
+                <label className="block text-xs font-bold text-text-muted uppercase tracking-widest mb-4">색상 테마</label>
+                <div className="grid grid-cols-3 gap-3">
+                  {(Object.entries(THEMES) as [ThemeName, typeof THEMES[ThemeName]][]).map(([key, theme]) => (
+                    <button
+                      key={key}
+                      onClick={() => handleThemeChange(key)}
+                      className={`rounded-lg border-2 overflow-hidden transition-all cursor-pointer text-left ${
+                        editorTheme === key
+                          ? 'border-accent shadow-[0_0_0_1px_var(--color-accent)]'
+                          : 'border-border hover:border-border/80'
+                      }`}
+                    >
+                      {/* 미리보기 */}
+                      <div className="h-14 flex" style={{ background: theme.preview.bg }}>
+                        <div className="w-1/3 h-full" style={{ background: theme.preview.panel }} />
+                        <div className="flex-1 flex flex-col justify-center gap-1 px-2">
+                          <div className="h-1.5 w-3/4 rounded-full" style={{ background: theme.preview.accent }} />
+                          <div className="h-1 w-1/2 rounded-full opacity-40" style={{ background: theme.preview.accent }} />
+                          <div className="h-1 w-2/3 rounded-full opacity-20" style={{ background: '#ffffff' }} />
+                        </div>
+                      </div>
+                      {/* 이름 */}
+                      <div className="px-3 py-2 bg-bg-tertiary">
+                        <p className={`text-[11px] font-semibold ${editorTheme === key ? 'text-accent' : 'text-text-primary/70'}`}>
+                          {theme.label}
+                          {editorTheme === key && ' ✓'}
+                        </p>
+                        <p className="text-[10px] text-text-muted/70 mt-0.5">{theme.desc}</p>
+                      </div>
+                    </button>
+                  ))}
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2">기본 폰트 바인딩 크기 (px)</label>
-                  <input 
-                    type="number" 
-                    value={fontSize} 
-                    onChange={(e) => setFontSize(Number(e.target.value))}
-                    className="w-full rounded-md bg-zinc-950 border border-zinc-800 p-3 text-xs focus:border-indigo-500 text-white outline-none" 
+              {/* 폰트 크기 */}
+              <div className="bg-bg-secondary rounded-xl p-6 border border-border">
+                <label className="block text-xs font-bold text-text-muted uppercase tracking-widest mb-3">에디터 폰트 크기 (px)</label>
+                <div className="flex items-center gap-4">
+                  <input
+                    type="range"
+                    min={11}
+                    max={20}
+                    value={editorSettings.fontSize}
+                    onChange={(e) => setEditorSettings(prev => ({ ...prev, fontSize: Number(e.target.value) }))}
+                    className="flex-1 accent-[var(--color-accent)]"
                   />
+                  <span className="text-sm font-mono text-text-primary w-8 text-right">{editorSettings.fontSize}</span>
                 </div>
-              </div>
-
-              <div className="border-t border-zinc-800 pt-6 flex justify-end">
-                <button 
-                  onClick={() => {
-                    alert("코드 에디터 설정 상태가 브라우저 세션에 즉각 마운트되었습니다!");
-                    setActiveTab("my");
-                  }}
-                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded font-bold text-xs cursor-pointer shadow transition-all"
-                >
-                  설정 저장
-                </button>
+                <p className="text-[10px] text-text-muted/60 mt-2">워크스페이스 에디터 반영은 다음 파일 오픈 시 적용됩니다.</p>
               </div>
             </div>
           )}
@@ -639,16 +617,16 @@ export default function ProjectListPage() {
       {/* CREATE DIALOG MODAL */}
       {isModalOpen && (
         <div id="create_project_modal" className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="w-full max-w-lg bg-zinc-900 border border-zinc-800 rounded-xl p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-150">
+          <div className="w-full max-w-lg bg-bg-secondary border border-border rounded-xl p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-150">
             <button 
               onClick={() => setIsModalOpen(false)}
-              className="absolute top-4 right-4 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+              className="absolute top-4 right-4 text-text-muted hover:text-text-primary transition-colors cursor-pointer"
             >
               <X size={20} />
             </button>
 
-            <h3 className="text-xl font-bold text-white mb-2">새 협업 프로젝트 창설</h3>
-            <p className="text-xs text-zinc-400 mb-6">진짜 원격 메모리 서버에 신규 작업공간 데이터를 작성하고 초대 팀원을 설정합니다.</p>
+            <h3 className="text-xl font-bold text-text-primary mb-2">새 협업 프로젝트 창설</h3>
+            <p className="text-xs text-text-muted mb-6">진짜 원격 메모리 서버에 신규 작업공간 데이터를 작성하고 초대 팀원을 설정합니다.</p>
 
             {error && (
               <div className="mb-4 p-3 bg-red-950/40 border border-red-900/50 text-red-400 text-xs font-semibold rounded">
@@ -658,32 +636,32 @@ export default function ProjectListPage() {
 
             <form onSubmit={handleCreateProject} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">프로젝트 명칭 *</label>
+                <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-2">프로젝트 명칭 *</label>
                 <input 
                   type="text"
                   required
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full rounded-md bg-zinc-950 border border-zinc-800 p-3 text-xs text-white focus:border-indigo-500 outline-none"
+                  className="w-full rounded-md bg-bg-deep border border-border p-3 text-xs text-text-primary focus:border-accent outline-none"
                   placeholder="예: API-Gateway-Refactor"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">설명 및 세부 가이드</label>
+                <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-2">설명 및 세부 가이드</label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={3}
-                  className="w-full rounded-md bg-zinc-950 border border-zinc-800 p-3 text-xs text-white focus:border-indigo-500 outline-none resize-none"
+                  className="w-full rounded-md bg-bg-deep border border-border p-3 text-xs text-text-primary focus:border-accent outline-none resize-none"
                   placeholder="협업을 공유하며 팀원들이 참고할 세부 개요를 서술해 주세요."
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">보안 설정</label>
+                <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-2">보안 설정</label>
                 <div className="flex gap-4">
-                  <label className="flex-1 p-3 bg-zinc-950 rounded-lg border border-zinc-800 flex items-center justify-between cursor-pointer hover:border-zinc-700 transition-colors">
+                  <label className="flex-1 p-3 bg-bg-deep rounded-lg border border-border flex items-center justify-between cursor-pointer hover:border-border/60 transition-colors">
                     <div className="flex items-center gap-2">
                       <span className="text-sm">🔒 프라이빗</span>
                     </div>
@@ -692,10 +670,10 @@ export default function ProjectListPage() {
                       name="visibility" 
                       checked={visibility === "PRIVATE"}
                       onChange={() => setVisibility("PRIVATE")}
-                      className="accent-indigo-600" 
+                      className="accent-[var(--color-accent)]" 
                     />
                   </label>
-                  <label className="flex-1 p-3 bg-zinc-950 rounded-lg border border-zinc-800 flex items-center justify-between cursor-pointer hover:border-zinc-700 transition-colors">
+                  <label className="flex-1 p-3 bg-bg-deep rounded-lg border border-border flex items-center justify-between cursor-pointer hover:border-border/60 transition-colors">
                     <div className="flex items-center gap-2">
                       <span className="text-sm">🌐 퍼블릭 공개</span>
                     </div>
@@ -704,36 +682,24 @@ export default function ProjectListPage() {
                       name="visibility" 
                       checked={visibility === "PUBLIC"}
                       onChange={() => setVisibility("PUBLIC")}
-                      className="accent-indigo-600" 
+                      className="accent-[var(--color-accent)]" 
                     />
                   </label>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">실시간 동기화 초대 대상자 (이메일)</label>
-                <textarea
-                  value={invitedEmailsStr}
-                  onChange={(e) => setInvitedEmailsStr(e.target.value)}
-                  rows={2}
-                  className="w-full rounded-md bg-zinc-950 border border-zinc-800 p-3 text-xs text-white focus:border-indigo-500 outline-none resize-none"
-                  placeholder="여러 명일 경우 쉼표(,)나 줄바꿈으로 구분해 기입해줍니다. 예: user1@flowdeck.io, user2@flowdeck.io"
-                />
-                <span className="text-[10px] text-zinc-500 mt-1 block">초대받은 대상 멤버들은 로그인 시 대기중인 초대 상태로 대시보드에 나타납니다.</span>
-              </div>
-
-              <div className="pt-4 border-t border-zinc-800 flex justify-end gap-3 text-xs">
+<div className="pt-4 border-t border-border flex justify-end gap-3 text-xs">
                 <button 
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded bg-zinc-800 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors cursor-pointer"
                 >
                   취소
                 </button>
                 <button 
                   type="submit"
                   disabled={isCreating}
-                  className="px-5 py-2.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-all disabled:opacity-50 cursor-pointer"
+                  className="px-5 py-2.5 rounded bg-accent hover:bg-accent/85 text-text-primary font-bold transition-all disabled:opacity-50 cursor-pointer"
                 >
                   {isCreating ? "창설 서버 전송 중..." : "새 프로젝트 생성 완료"}
                 </button>
@@ -746,82 +712,82 @@ export default function ProjectListPage() {
       {/* EDIT TITLE/DESC MODAL */}
       {isEditModalOpen && (
         <div id="edit_project_modal" className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-xl p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-150">
+          <div className="w-full max-w-md bg-bg-secondary border border-border rounded-xl p-6 shadow-2xl relative animate-in fade-in zoom-in-95 duration-150">
             <button 
               onClick={() => {
                 setIsEditModalOpen(false);
                 setEditingProjectId(null);
               }}
-              className="absolute top-4 right-4 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+              className="absolute top-4 right-4 text-text-muted hover:text-text-primary transition-colors cursor-pointer"
             >
               <X size={20} />
             </button>
 
-            <h3 className="text-lg font-bold text-white mb-2">프로젝트 설정 수정</h3>
-            <p className="text-xs text-zinc-400 mb-6">창설주 권한으로 지정된 워크스페이스의 정보를 수정 및 연동 변경합니다.</p>
+            <h3 className="text-lg font-bold text-text-primary mb-2">프로젝트 설정 수정</h3>
+            <p className="text-xs text-text-muted mb-6">창설주 권한으로 지정된 워크스페이스의 정보를 수정 및 연동 변경합니다.</p>
 
             <form onSubmit={handleUpdateProject} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">프로젝트 명칭</label>
+                <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-2">프로젝트 명칭</label>
                 <input 
                   type="text"
                   required
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
-                  className="w-full rounded-md bg-zinc-950 border border-zinc-800 p-3 text-xs text-white focus:border-indigo-500 outline-none"
+                  className="w-full rounded-md bg-bg-deep border border-border p-3 text-xs text-text-primary focus:border-accent outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">설명 및 세부 가이드</label>
+                <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-2">설명 및 세부 가이드</label>
                 <textarea
                   value={editDescription}
                   onChange={(e) => setEditDescription(e.target.value)}
                   rows={3}
-                  className="w-full rounded-md bg-zinc-950 border border-zinc-800 p-3 text-xs text-white focus:border-indigo-500 outline-none resize-none"
+                  className="w-full rounded-md bg-bg-deep border border-border p-3 text-xs text-text-primary focus:border-accent outline-none resize-none"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">공개 범위 설정</label>
+                <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-2">공개 범위 설정</label>
                 <div className="flex gap-4">
-                  <label className="flex-1 p-3 bg-zinc-950 rounded-lg border border-zinc-800 flex items-center justify-between cursor-pointer hover:border-zinc-700 transition-colors">
+                  <label className="flex-1 p-3 bg-bg-deep rounded-lg border border-border flex items-center justify-between cursor-pointer hover:border-border/60 transition-colors">
                     <span className="text-xs">🔒 프라이빗</span>
                     <input 
                       type="radio" 
                       name="edit-visibility" 
                       checked={editVisibility === "PRIVATE"}
                       onChange={() => setEditVisibility("PRIVATE")}
-                      className="accent-indigo-600" 
+                      className="accent-[var(--color-accent)]" 
                     />
                   </label>
-                  <label className="flex-1 p-3 bg-zinc-950 rounded-lg border border-zinc-800 flex items-center justify-between cursor-pointer hover:border-zinc-700 transition-colors">
+                  <label className="flex-1 p-3 bg-bg-deep rounded-lg border border-border flex items-center justify-between cursor-pointer hover:border-border/60 transition-colors">
                     <span className="text-xs">🌐 퍼블릭</span>
                     <input 
                       type="radio" 
                       name="edit-visibility" 
                       checked={editVisibility === "PUBLIC"}
                       onChange={() => setEditVisibility("PUBLIC")}
-                      className="accent-indigo-600" 
+                      className="accent-[var(--color-accent)]" 
                     />
                   </label>
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-zinc-800 flex justify-end gap-3 text-xs">
+              <div className="pt-4 border-t border-border flex justify-end gap-3 text-xs">
                 <button 
                   type="button"
                   onClick={() => {
                     setIsEditModalOpen(false);
                     setEditingProjectId(null);
                   }}
-                  className="px-4 py-2 rounded bg-zinc-800 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded bg-bg-tertiary text-text-muted hover:text-text-primary transition-colors cursor-pointer"
                 >
                   취소
                 </button>
                 <button 
                   type="submit"
-                  className="px-5 py-2.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition-all cursor-pointer"
+                  className="px-5 py-2.5 rounded bg-accent hover:bg-accent/85 text-text-primary font-bold transition-all cursor-pointer"
                 >
                   설정 저장 적용
                 </button>

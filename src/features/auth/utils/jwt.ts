@@ -1,5 +1,6 @@
 export interface CurrentUser {
-  userId: string
+  userId: string    // JWT 'userId' custom claim (숫자 문자열일 수 있음)
+  publicId: string  // JWT 'sub' claim (Spring Security principal, UUID 형식)
   numericId: number
   name: string
   email: string
@@ -21,12 +22,15 @@ export function parseCurrentUser(token: string | null): CurrentUser | null {
   const claims = decodeJWT(token)
   if (!claims) return null
 
-  // Spring Security 기본값: sub = 사용자 식별자
-  const userId = String(claims['userId'] ?? claims['sub'] ?? '')
-  const numericId = Number(claims['id'] ?? claims['numericId'] ?? NaN)
+  const sub = String(claims['sub'] ?? '')
+  const userId = String(claims['userId'] ?? sub)
+  // publicId: sub (UUID) 우선, 없으면 userId fallback
+  const publicId = sub || userId
+  // numericId: 명시적 숫자 클레임 → userId가 숫자인 경우도 시도
+  const numericId = Number(claims['id'] ?? claims['numericId'] ?? claims['userId'] ?? NaN)
   const name = String(claims['name'] ?? claims['username'] ?? '')
   const email = String(claims['email'] ?? '')
 
   if (!userId) return null
-  return { userId, numericId: Number.isNaN(numericId) ? -1 : numericId, name, email }
+  return { userId, publicId, numericId: Number.isNaN(numericId) ? -1 : numericId, name, email }
 }

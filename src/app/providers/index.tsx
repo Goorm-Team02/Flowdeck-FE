@@ -1,9 +1,12 @@
 // src/app/providers/index.tsx
 import { type ReactNode } from 'react'
 
+import { AuthProvider } from '@/features/auth/authStore'
+
+import { GlobalSocketManager } from '../GlobalSocketManager'
+import { RoleChangeNotification } from '../RoleChangeNotification'
 import { QueryProvider } from './QueryProvider'
 import { SocketProvider } from './SocketProvider'
-import { AuthProvider } from '@/features/auth/authStore' 
 
 interface Props {
   children: ReactNode
@@ -14,6 +17,8 @@ export function AppProviders({ children }: Props) {
     <QueryProvider>
       <SocketProvider>
         <AuthProvider>
+          <GlobalSocketManager />
+          <RoleChangeNotification />
           {children}
         </AuthProvider>
       </SocketProvider>
