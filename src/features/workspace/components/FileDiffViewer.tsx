@@ -8,7 +8,7 @@ import { useFile } from '../hooks/useFile'
 import { useFileVersion } from '../hooks/useFileVersion'
 import { useFileVersions } from '../hooks/useFileVersions'
 import { useRestoreWithConfirm } from '../hooks/useRestoreWithConfirm'
-import { openFileIdAtom } from '../stores/openFileAtom'
+import { baseRevisionAtom, openFileIdAtom } from '../stores/openFileAtom'
 
 // VIEWER 권한 여부 — 추후 auth 연동 시 실제 권한으로 교체
 const useIsViewer = () => false
@@ -51,6 +51,7 @@ function formatDate(iso: string): string {
 export default function FileDiffViewer() {
   const { projectId = '' } = useParams<{ projectId: string }>()
   const fileId = useAtomValue(openFileIdAtom)
+  const baseRevision = useAtomValue(baseRevisionAtom)
   const isViewer = useIsViewer()
 
   const { data: file } = useFile(projectId, fileId)
@@ -287,7 +288,11 @@ export default function FileDiffViewer() {
                 취소
               </button>
               <button
-                onClick={() => fileId && confirmRestore(fileId, `v${confirmVersion.version}`)}
+                onClick={() =>
+                  fileId &&
+                  baseRevision !== null &&
+                  confirmRestore(fileId, `v${confirmVersion.version}`, baseRevision)
+                }
                 disabled={isRestoring}
                 className="px-4 py-1.5 text-[13px] bg-accent text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
               >

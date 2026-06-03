@@ -3,11 +3,37 @@ import type { ApiResponse } from '@/shared/types/api'
 
 import type { FileDetail, FileNode, FileNodeType } from '../types'
 
+type RawNode = Record<string, unknown>
+
+function normalizeNode(raw: RawNode): FileNode {
+  return {
+    id: (raw.fileId ?? raw.id) as number,
+    name: raw.name as string,
+    type: raw.type as FileNode['type'],
+    parentId: raw.parentId as number | null,
+    editRevision: raw.editRevision as number | undefined,
+    currentVersion: raw.currentVersion as number | undefined,
+    children: (raw.children as RawNode[] | undefined)?.map(normalizeNode),
+  }
+}
+
+function normalizeDetail(raw: RawNode): FileDetail {
+  return {
+    id: (raw.fileId ?? raw.id) as number,
+    name: raw.name as string,
+    type: raw.type as FileDetail['type'],
+    parentId: raw.parentId as number | null,
+    editRevision: raw.editRevision as number,
+    currentVersion: raw.currentVersion as number,
+    content: (raw.content ?? '') as string,
+  }
+}
+
 export async function getFile(projectId: string, fileId: number): Promise<FileDetail> {
-  const res = await apiClient.get<ApiResponse<FileDetail>>(
+  const res = await apiClient.get<ApiResponse<RawNode>>(
     `/api/projects/${projectId}/files/${fileId}`,
   )
-  return res.data.data
+  return normalizeDetail(res.data.data)
 }
 
 export async function saveFile(
@@ -16,11 +42,11 @@ export async function saveFile(
   content: string,
   baseRevision: number,
 ): Promise<FileDetail> {
-  const res = await apiClient.put<ApiResponse<FileDetail>>(
+  const res = await apiClient.put<ApiResponse<RawNode>>(
     `/api/projects/${projectId}/files/${fileId}`,
     { content, baseRevision },
   )
-  return res.data.data
+  return normalizeDetail(res.data.data)
 }
 
 export async function createFile(
@@ -29,12 +55,12 @@ export async function createFile(
   name: string,
   type: FileNodeType,
 ): Promise<FileNode> {
-  const res = await apiClient.post<ApiResponse<FileNode>>(`/api/projects/${projectId}/files`, {
+  const res = await apiClient.post<ApiResponse<RawNode>>(`/api/projects/${projectId}/files`, {
     parentId,
     name,
     type,
   })
-  return res.data.data
+  return normalizeNode(res.data.data)
 }
 
 export async function renameFile(
@@ -42,11 +68,11 @@ export async function renameFile(
   fileId: number,
   name: string,
 ): Promise<FileNode> {
-  const res = await apiClient.patch<ApiResponse<FileNode>>(
+  const res = await apiClient.patch<ApiResponse<RawNode>>(
     `/api/projects/${projectId}/files/${fileId}`,
     { name },
   )
-  return res.data.data
+  return normalizeNode(res.data.data)
 }
 
 export async function deleteFile(
@@ -64,9 +90,9 @@ export async function moveFile(
   fileId: number,
   newParentId: number | null,
 ): Promise<FileNode> {
-  const res = await apiClient.patch<ApiResponse<FileNode>>(
+  const res = await apiClient.patch<ApiResponse<RawNode>>(
     `/api/projects/${projectId}/files/${fileId}/move`,
-    { newParentId },
+    { parentId: newParentId },
   )
-  return res.data.data
+  return normalizeNode(res.data.data)
 }

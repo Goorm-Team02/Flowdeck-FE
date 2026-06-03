@@ -6,8 +6,15 @@ import { fileTreeKeys, fileVersionKeys } from '../lib/queryKeys'
 export function useRestoreFileVersion(projectId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ fileId, versionId }: { fileId: number; versionId: number }) =>
-      restoreFileVersion(projectId, fileId, versionId),
+    mutationFn: ({
+      fileId,
+      versionId,
+      baseRevision,
+    }: {
+      fileId: number
+      versionId: number
+      baseRevision: number
+    }) => restoreFileVersion(projectId, fileId, versionId, baseRevision),
     onSuccess: (_, { fileId }) => {
       queryClient.invalidateQueries({ queryKey: fileTreeKeys.detail(projectId, fileId) })
       queryClient.invalidateQueries({ queryKey: fileVersionKeys.all(projectId, fileId) })

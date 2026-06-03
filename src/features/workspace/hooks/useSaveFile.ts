@@ -22,8 +22,17 @@ export function useSaveFile(projectId: string) {
   return useMutation({
     mutationFn: ({ fileId, content, baseRevision }: SaveFileVariables) =>
       saveFile(projectId, fileId, content, baseRevision),
-    onSuccess: (data) => {
-      queryClient.setQueryData(fileTreeKeys.detail(projectId, data.id), data)
+    onSuccess: (data, variables) => {
+      // 서버 응답에 content가 없을 수 있으므로 전송한 content를 직접 유지
+      queryClient.setQueryData(
+        fileTreeKeys.detail(projectId, data.id),
+        (old: import('../types').FileDetail | undefined) => ({
+          ...(old ?? data),
+          editRevision: data.editRevision,
+          currentVersion: data.currentVersion,
+          content: variables.content,
+        }),
+      )
       setBaseRevision(data.editRevision)
       setIsDirty(false)
     },

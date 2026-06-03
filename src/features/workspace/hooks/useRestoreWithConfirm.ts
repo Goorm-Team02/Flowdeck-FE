@@ -31,10 +31,10 @@ export function useRestoreWithConfirm(projectId: string) {
     setRestorePhase(null)
   }
 
-  function confirmRestore(fileId: number, versionLabel: string) {
+  function confirmRestore(fileId: number, versionLabel: string, baseRevision: number) {
     if (restorePhase?.phase !== 'confirm') return
     restore(
-      { fileId, versionId: restorePhase.versionId },
+      { fileId, versionId: restorePhase.versionId, baseRevision },
       {
         onSuccess: () => {
           setRestorePhase({

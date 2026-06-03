@@ -182,28 +182,28 @@ export default App`,
 
 const mockTimeline: TimelineVersionCard[] = [
   {
-    id: 101,
-    version: 1,
-    authorName: '김민경',
-    savedAt: '2026-05-25T10:00:00Z',
-    content: mockVersionContents[101],
-    diffSummary: null,
+    versionId: 101,
+    versionNumber: 1,
+    changeMessage: '초기 버전',
+    createdBy: 1,
+    createdByName: '김민경',
+    createdAt: '2026-05-25T10:00:00Z',
   },
   {
-    id: 102,
-    version: 2,
-    authorName: '이지훈',
-    savedAt: '2026-05-26T14:30:00Z',
-    content: mockVersionContents[102],
-    diffSummary: { added: 4, removed: 1 },
+    versionId: 102,
+    versionNumber: 2,
+    changeMessage: '기능 추가',
+    createdBy: 2,
+    createdByName: '이지훈',
+    createdAt: '2026-05-26T14:30:00Z',
   },
   {
-    id: 103,
-    version: 3,
-    authorName: '김민경',
-    savedAt: '2026-05-27T09:15:00Z',
-    content: mockVersionContents[103],
-    diffSummary: { added: 4, removed: 1 },
+    versionId: 103,
+    versionNumber: 3,
+    changeMessage: '버그 수정',
+    createdBy: 1,
+    createdByName: '김민경',
+    createdAt: '2026-05-27T09:15:00Z',
   },
 ]
 
@@ -512,8 +512,8 @@ export const handlers = [
   }),
 
   http.get(`${BASE}/api/projects/:projectId/files/:fileId/versions/timeline`, ({ params }) => {
-    if (Number(params.fileId) !== FILE_ID) return ok([])
-    return ok(mockTimeline)
+    const versions = Number(params.fileId) !== FILE_ID ? [] : mockTimeline
+    return ok({ versions, totalVersions: versions.length, page: 0, size: 20, hasNext: false })
   }),
 
   http.get(`${BASE}/api/projects/:projectId/files/:fileId/versions/:versionId`, ({ params }) => {
@@ -695,8 +695,9 @@ export const handlers = [
     return ok({})
   }),
 
-  http.post(`${BASE}/api/projects/:projectId/files/:fileId/versions`, ({ params }) => {
+  http.post(`${BASE}/api/projects/:projectId/files/:fileId/versions`, async ({ params, request }) => {
     const fileId = Number(params.fileId)
+    const body = (await request.json()) as { changeMessage?: string }
     const lastVersion = mockVersions.at(-1)?.version ?? 0
     const newId = (mockVersions.at(-1)?.id ?? 200) + 1
     const newVersion: FileVersion = {
@@ -708,7 +709,14 @@ export const handlers = [
     const content = mockFiles[fileId]?.content ?? ''
     mockVersions.push(newVersion)
     mockVersionContents[newId] = content
-    mockTimeline.push({ ...newVersion, content, diffSummary: { added: 1, removed: 0 } })
+    mockTimeline.push({
+      versionId: newId,
+      versionNumber: newVersion.version,
+      changeMessage: body.changeMessage ?? '',
+      createdBy: 1,
+      createdByName: '김민경',
+      createdAt: newVersion.savedAt,
+    })
     return ok({ fileId, version: newVersion.version, savedAt: newVersion.savedAt })
   }),
 ]

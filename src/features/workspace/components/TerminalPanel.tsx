@@ -2,7 +2,50 @@ import { useEffect, useRef, useState } from 'react'
 
 import { useAtom, useAtomValue } from 'jotai'
 
-import { isRunningAtom, runTriggerAtom, stopTriggerAtom } from '../stores/terminalAtom'
+import { projectTitleAtom } from '../stores/sidebarAtom'
+import { isRunningAtom, runCodePayloadAtom, stopTriggerAtom } from '../stores/terminalAtom'
+
+interface WandboxResponse {
+  status: string
+  compiler_error?: string
+  program_output?: string
+  program_error?: string
+}
+
+interface WandboxRuntime {
+  name: string
+  language: string
+}
+
+// 우리 언어 이름 → Wandbox language 필드 매핑
+const WANDBOX_LANG: Record<string, string> = {
+  python: 'Python',
+  javascript: 'JavaScript',
+  typescript: 'TypeScript',
+  java: 'Java',
+  'c++': 'C++',
+  c: 'C',
+  go: 'Go',
+  rust: 'Rust',
+  ruby: 'Ruby',
+  php: 'PHP',
+  bash: 'Bash script',
+}
+
+let wandboxRuntimes: WandboxRuntime[] | null = null
+
+async function resolveWandboxCompiler(language: string): Promise<string | null> {
+  if (!wandboxRuntimes) {
+    const res = await fetch('https://wandbox.org/api/list.json')
+    wandboxRuntimes = (await res.json()) as WandboxRuntime[]
+  }
+  const target = WANDBOX_LANG[language]
+  if (!target) return null
+  const matches = wandboxRuntimes.filter((r) => r.language === target)
+  if (matches.length === 0) return null
+  // 마지막 항목이 보통 최신 stable
+  return matches[matches.length - 1].name
+}
 
 type LineType = 'default' | 'success' | 'error' | 'info' | 'link' | 'muted' | 'warning'
 
@@ -33,7 +76,7 @@ const line = (text: string, type: LineType = 'default', isPrompt = false): TermL
 
 const DEV_STEPS: Array<{ delay: number; text: string; type: LineType }> = [
   { delay: 50, text: '', type: 'default' },
-  { delay: 120, text: '> react-dashboard@0.0.0 dev', type: 'muted' },
+  { delay: 120, text: '> project@0.0.0 dev', type: 'muted' },
   { delay: 180, text: '> vite', type: 'info' },
   { delay: 550, text: '', type: 'default' },
   { delay: 650, text: '  VITE v6.3.5  ready in 412 ms', type: 'success' },
@@ -43,7 +86,7 @@ const DEV_STEPS: Array<{ delay: number; text: string; type: LineType }> = [
 ]
 
 const BUILD_STEPS: Array<{ delay: number; text: string; type: LineType }> = [
-  { delay: 50, text: '> react-dashboard@0.0.0 build', type: 'muted' },
+  { delay: 50, text: '> project@0.0.0 build', type: 'muted' },
   { delay: 100, text: '> tsc -b && vite build', type: 'info' },
   { delay: 600, text: '', type: 'default' },
   { delay: 700, text: 'vite v6.3.5 building client...', type: 'muted' },
@@ -68,10 +111,11 @@ export default function TerminalPanel() {
   const [cmdHistory, setCmdHistory] = useState<string[]>([])
   const [histIdx, setHistIdx] = useState(-1)
   const [isRunning, setIsRunning] = useAtom(isRunningAtom)
-  const runTrigger = useAtomValue(runTriggerAtom)
-  const stopTrigger = useAtomValue(stopTriggerAtom)
-  const prevRun = useRef(0)
+  const projectTitle = useAtomValue(projectTitleAtom)
+  const [runCodePayload, setRunCodePayload] = useAtom(runCodePayloadAtom)
+  const [stopTrigger] = useAtom(stopTriggerAtom)
   const prevStop = useRef(0)
+  const abortControllerRef = useRef<AbortController | null>(null)
   const runDevServerRef = useRef<() => void>(() => {})
   const stopDevServerRef = useRef<() => void>(() => {})
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -133,17 +177,77 @@ export default function TerminalPanel() {
     bottomRef.current?.scrollIntoView({ behavior: 'auto' })
   }, [lines, isRunning])
 
+  // Piston 코드 실행
   useEffect(() => {
-    if (runTrigger > prevRun.current) {
-      prevRun.current = runTrigger
-      runDevServerRef.current()
-    }
-  }, [runTrigger])
+    if (!runCodePayload) return
+    const payload = runCodePayload
+    setRunCodePayload(null)
 
+    if (!payload.filename) {
+      append('열린 파일이 없습니다.', 'error')
+      return
+    }
+    if (!payload.language) {
+      append(`실행할 수 없는 파일 형식입니다: ${payload.filename}`, 'error')
+      return
+    }
+
+    append(`▶  ${payload.filename}`, 'info', true)
+    setIsRunning(true)
+
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
+    resolveWandboxCompiler(payload.language)
+      .then((compiler) => {
+        if (!compiler) throw new Error(`지원하지 않는 언어입니다: ${payload.language}`)
+        return fetch('https://wandbox.org/api/compile.json', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ compiler, code: payload.code, filename: payload.filename }),
+          signal: controller.signal,
+        })
+      })
+      .then(async (r) => {
+        if (!r.ok) {
+          const body = await r.text().catch(() => '')
+          throw new Error(`HTTP ${r.status}${body ? ': ' + body.slice(0, 200) : ''}`)
+        }
+        return r.json()
+      })
+      .then((data: WandboxResponse) => {
+        const compilerErr = data.compiler_error ?? ''
+        const stdout = data.program_output ?? ''
+        const stderr = data.program_error ?? ''
+        const exitCode = data.status ?? '0'
+        if (compilerErr) compilerErr.split('\n').filter(Boolean).forEach((l) => append(l, 'error'))
+        if (stdout) stdout.split('\n').filter(Boolean).forEach((l) => append(l, 'default'))
+        if (stderr) stderr.split('\n').filter(Boolean).forEach((l) => append(l, 'error'))
+        append(`exit ${exitCode}`, exitCode === '0' ? 'success' : 'error')
+      })
+      .catch((err: Error) => {
+        if (err.name === 'AbortError') {
+          appendMany([line('^C', 'warning'), line('실행이 중단되었습니다.', 'muted')])
+        } else {
+          append(`실행 오류: ${err.message}`, 'error')
+        }
+      })
+      .finally(() => {
+        abortControllerRef.current = null
+        setIsRunning(false)
+        setTimeout(() => inputRef.current?.focus(), 50)
+      })
+  }, [runCodePayload, setRunCodePayload, setIsRunning])
+
+  // 정지 버튼
   useEffect(() => {
     if (stopTrigger > prevStop.current) {
       prevStop.current = stopTrigger
-      stopDevServerRef.current()
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      } else {
+        stopDevServerRef.current()
+      }
     }
   }, [stopTrigger])
 
@@ -182,7 +286,7 @@ export default function TerminalPanel() {
 
       case 'pwd':
         append(trimmed, 'default', true)
-        append('/workspace/react-dashboard')
+        append(`/workspace/${projectTitle || 'project'}`)
         break
 
       case 'echo':
@@ -245,7 +349,7 @@ export default function TerminalPanel() {
           </span>
           {isRunning && (
             <span className="text-[12px] text-text-primary/70 bg-bg-tertiary px-2 py-0.5 rounded">
-              npm run dev
+              실행 중...
             </span>
           )}
         </div>
@@ -267,7 +371,7 @@ export default function TerminalPanel() {
           <div key={l.id} className={`whitespace-pre leading-[1.6] ${TYPE_CLASS[l.type]}`}>
             {l.isPrompt && (
               <>
-                <span className="text-terminal-green">react-dashboard</span>
+                <span className="text-terminal-green">{projectTitle || 'workspace'}</span>
                 <span className="text-text-primary/50">:~$ </span>
               </>
             )}
@@ -279,7 +383,7 @@ export default function TerminalPanel() {
 
       {/* Input prompt */}
       <div className="px-3 py-1.5 flex items-center font-mono text-[12px] bg-bg-primary border-t border-border/40 shrink-0">
-        <span className="text-terminal-green shrink-0">react-dashboard</span>
+        <span className="text-terminal-green shrink-0">{projectTitle || 'workspace'}</span>
         <span className="text-text-primary/50 shrink-0">:~$&nbsp;</span>
         {isRunning ? (
           <span className="text-text-primary/35 flex items-center gap-1.5">

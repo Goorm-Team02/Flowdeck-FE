@@ -5,7 +5,7 @@ import LoginPage from './routes/LoginPage'
 import NotFoundPage from './routes/NotFoundPage'
 import ProjectListPage from './routes/ProjectListPage'
 import SignupPage from './routes/SignupPage'
-import WorkspacePage from './routes/WorkspacePage'
+import WorkspaceLayout from '@/features/workspace/components/WorkspaceLayout'
 
 export const router = createBrowserRouter([
   {
@@ -26,7 +26,7 @@ export const router = createBrowserRouter([
   },
   {
     path: '/projects/:projectId',
-    element: <WorkspacePage />,
+    element: <WorkspaceLayout />,
   },
   {
     path: '*',

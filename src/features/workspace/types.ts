@@ -57,21 +57,24 @@ export type DiffLineType = 'ADDED' | 'REMOVED' | 'UNCHANGED'
 
 export interface DiffLine {
   type: DiffLineType
-  lineNumber: number
+  oldLineNumber: number | null
+  newLineNumber: number | null
   content: string
 }
 
 export interface FileVersionDiff {
-  from: number
-  to: number
-  lines: DiffLine[]
+  fromVersion: number
+  toVersion: number
+  addedLines: number
+  removedLines: number
+  changes: DiffLine[]
 }
 
 export interface TimelineVersionCard {
-  id: number
-  version: number
-  authorName: string
-  savedAt: string
-  content: string
-  diffSummary: { added: number; removed: number } | null
+  versionId: number
+  versionNumber: number
+  changeMessage: string
+  createdBy: number
+  createdByName: string
+  createdAt: string
 }

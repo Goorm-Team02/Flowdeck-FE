@@ -28,7 +28,18 @@ export default function LoginPage() {
     try {
       const res = await authService.login({ email, password })
       login(res.user)
-      setCurrentUser(parseCurrentUser(res.accessToken))
+      const jwtUser = parseCurrentUser(res.accessToken)
+      if (jwtUser) {
+        // getMyInfo() 응답으로 JWT에 없는 필드 보완
+        setCurrentUser({
+          ...jwtUser,
+          publicId: res.user.id ?? jwtUser.publicId,
+          name: res.user.name || jwtUser.name,
+          email: res.user.email || jwtUser.email,
+        })
+      } else {
+        setCurrentUser(jwtUser)
+      }
       navigate(redirect, { replace: true })
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : undefined

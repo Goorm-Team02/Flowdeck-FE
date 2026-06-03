@@ -2,7 +2,7 @@ import type React from 'react'
 
 import { useAtom } from 'jotai'
 
-import { activeSidebarPanelAtom, historyOpenAtom, timelineOpenAtom } from '../stores/sidebarAtom'
+import { activeSidebarPanelAtom, timelineOpenAtom } from '../stores/sidebarAtom'
 import type { SidebarPanel } from '../stores/sidebarAtom'
 
 const SIDEBAR_ICONS: { id: SidebarPanel; label: string; path: React.ReactNode }[] = [
@@ -31,16 +31,9 @@ const SIDEBAR_ICONS: { id: SidebarPanel; label: string; path: React.ReactNode }[
 export default function ActivityBar() {
   const [activeSidebar, setActiveSidebar] = useAtom(activeSidebarPanelAtom)
   const [timelineOpen, setTimelineOpen] = useAtom(timelineOpenAtom)
-  const [historyOpen, setHistoryOpen] = useAtom(historyOpenAtom)
 
   const toggleTimeline = () => {
-    setHistoryOpen(false)
     setTimelineOpen((v) => !v)
-  }
-
-  const toggleHistory = () => {
-    setTimelineOpen(false)
-    setHistoryOpen((v) => !v)
   }
 
   return (
@@ -52,7 +45,7 @@ export default function ActivityBar() {
             title={label}
             onClick={() => setActiveSidebar(id)}
             className={`w-10 h-10 flex items-center justify-center rounded transition-colors ${
-              activeSidebar === id && !timelineOpen && !historyOpen
+              activeSidebar === id && !timelineOpen
                 ? 'text-text-primary bg-bg-secondary/50'
                 : 'text-text-primary/40 hover:text-text-primary/80 hover:bg-bg-secondary/30'
             }`}
@@ -90,29 +83,6 @@ export default function ActivityBar() {
           >
             <circle cx="12" cy="12" r="10" />
             <polyline points="12 6 12 12 16 14" />
-          </svg>
-        </button>
-
-        {/* 버전 비교 — 세로 분할 아이콘 */}
-        <button
-          title="버전 비교"
-          onClick={toggleHistory}
-          className={`w-10 h-10 flex items-center justify-center rounded transition-colors ${
-            historyOpen
-              ? 'text-accent bg-bg-secondary/50'
-              : 'text-text-primary/40 hover:text-text-primary/80 hover:bg-bg-secondary/30'
-          }`}
-        >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          >
-            <rect x="3" y="3" width="7" height="18" rx="1" />
-            <rect x="14" y="3" width="7" height="18" rx="1" />
           </svg>
         </button>
       </div>

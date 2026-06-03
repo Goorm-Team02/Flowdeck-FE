@@ -1,11 +1,26 @@
-import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 
 import { memberModalOpenAtom } from '../stores/memberModalAtom'
+import { editorContentAtom, openFileNameAtom } from '../stores/openFileAtom'
 import { presenceAtom } from '../stores/presenceAtom'
-import { isRunningAtom, runTriggerAtom, stopTriggerAtom } from '../stores/terminalAtom'
+import { projectTitleAtom } from '../stores/sidebarAtom'
+import { isRunningAtom, runCodePayloadAtom, stopTriggerAtom } from '../stores/terminalAtom'
+
+const PISTON_LANGS: Record<string, string> = {
+  py: 'python',
+  js: 'javascript',
+  ts: 'typescript',
+  java: 'java',
+  cpp: 'c++',
+  c: 'c',
+  go: 'go',
+  rs: 'rust',
+  sh: 'bash',
+  rb: 'ruby',
+  php: 'php',
+}
 
 const AVATAR_COLORS = [
   'bg-accent',
@@ -19,29 +34,24 @@ const AVATAR_COLORS = [
 const MAX_AVATARS = 3
 
 export default function TopBar() {
-  const { projectId = '' } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
   const [isRunning] = useAtom(isRunningAtom)
-  const setRunTrigger = useSetAtom(runTriggerAtom)
   const setStopTrigger = useSetAtom(stopTriggerAtom)
+  const setRunCodePayload = useSetAtom(runCodePayloadAtom)
   const setMemberModalOpen = useSetAtom(memberModalOpenAtom)
   const { count, members } = useAtomValue(presenceAtom)
-  const [copied, setCopied] = useState(false)
-
-  const handleShareClick = () => {
-    const url = `${window.location.origin}/invite/${projectId}`
-    navigator.clipboard.writeText(url).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
-  }
+  const editorContent = useAtomValue(editorContentAtom)
+  const openFileName = useAtomValue(openFileNameAtom)
+  const projectTitle = useAtomValue(projectTitleAtom)
 
   const handleRunClick = () => {
     if (isRunning) {
       setStopTrigger((prev) => prev + 1)
-    } else {
-      setRunTrigger((prev) => prev + 1)
+      return
     }
+    const ext = openFileName.split('.').pop()?.toLowerCase() ?? ''
+    const language = PISTON_LANGS[ext] ?? ''
+    setRunCodePayload({ code: editorContent, language, filename: openFileName })
   }
 
   const visibleMembers = members.slice(0, MAX_AVATARS)
@@ -58,7 +68,7 @@ export default function TopBar() {
           프로젝트 목록
         </button>
         <span className="text-text-primary/30">/</span>
-        <span className="text-text-primary font-medium">react-dashboard</span>
+        <span className="text-text-primary font-medium">{projectTitle || '프로젝트'}</span>
         <span className="px-1.5 py-0.5 text-xs rounded bg-bg-tertiary text-text-primary/70 border border-border">
           main
         </span>
@@ -113,50 +123,6 @@ export default function TopBar() {
             <path d="M16 3.13a4 4 0 0 1 0 7.75" />
           </svg>
           멤버
-        </button>
-
-        {/* 공유 */}
-        <button
-          onClick={handleShareClick}
-          className={`flex items-center gap-1.5 px-2.5 py-1 text-sm rounded transition-colors ${
-            copied
-              ? 'text-green-400 bg-green-400/10'
-              : 'text-text-primary/60 hover:text-text-primary hover:bg-bg-tertiary'
-          }`}
-        >
-          {copied ? (
-            <>
-              <svg
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-              링크 복사됨
-            </>
-          ) : (
-            <>
-              <svg
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-              >
-                <circle cx="18" cy="5" r="3" />
-                <circle cx="6" cy="12" r="3" />
-                <circle cx="18" cy="19" r="3" />
-                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-              </svg>
-              공유
-            </>
-          )}
         </button>
 
         {/* 실행 / 정지 */}
