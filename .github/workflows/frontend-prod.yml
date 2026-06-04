@@ -1,0 +1,42 @@
+name: frontend-prod
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+          aws-region: ap-northeast-2
+
+      - name: Deploy frontend through SSM
+        run: |
+          aws ssm send-command \
+            --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploy Flowdeck frontend prod" \
+            --parameters 'commands=[
+              "set -e",
+              "cd /opt/flowdeck/frontend-prod/app",
+              "git fetch origin main",
+              "git reset --hard origin/main",
+              "npm install",
+              "npm run build",
+              "sudo mkdir -p /var/www/flowdeck/frontend-prod",
+              "sudo rm -rf /var/www/flowdeck/frontend-prod/*",
+              "sudo cp -r dist/* /var/www/flowdeck/frontend-prod/",
+              "sudo nginx -t",
+              "sudo systemctl reload nginx"
+            ]' \
+            --output text

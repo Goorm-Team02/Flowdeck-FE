@@ -8,8 +8,7 @@
 - **Framework**: React 19 + TypeScript + Vite
 - **Styling**: Tailwind CSS v4 (CSS-first, `@theme` 블록)
 - **서버 상태**: TanStack Query (React Query)
-- **소켓 raw 데이터 / UI 상태**: Jotai
-- **클라이언트 도메인 상태 (액션 많은 곳)**: Zustand
+- **소켓 raw 데이터 / UI 상태 / 클라이언트 도메인 상태**: Jotai
 - **WebSocket 연결**: STOMP client는 Context API로 제공
 - **Router**: react-router-dom
 
@@ -41,7 +40,7 @@ app  →  features  →  shared
 | 서버에서 가져오는 데이터 | React Query |
 | 소켓으로 push되는 raw 데이터 | Jotai |
 | UI ephemeral (패널 크기, 모달 등) | Jotai |
-| 클라이언트 도메인 상태 (탭, 파일트리 등) | Jotai |
+| 클라이언트 도메인 상태 (탭, 파일트리, 모달 등) | Jotai |
 | WebSocket client 인스턴스 | Context API |
 
 **핵심 패턴**: 소켓 콜백에서 React Query 캐시를 직접 업데이트.
@@ -84,3 +83,72 @@ Type: `Feat`, `Fix`, `Refactor`, `Style`, `Design`, `Docs`, `Chore`, `Test`, `Re
 
 Prettier + ESLint가 자동 강제. 자세한 규칙은 `.prettierrc.json`, `eslint.config.js` 참조.
 요약: 세미콜론 없음, 작은따옴표, type-only import는 `import type`.
+
+## Claude Code 개발 플로우
+
+이슈 기반으로 브랜치 단위 작업. 매 작업마다 아래 순서를 따른다.
+
+### 1. 이슈 확인
+
+```bash
+gh issue view <번호>
+```
+
+이슈 번호, 작업 내용, 완료 조건을 확인한다.  
+API 연동 작업이면 명세서를 함께 받아 엔드포인트·요청/응답 타입을 확인한다.
+
+### 2. 브랜치 체크아웃
+
+```bash
+git fetch origin
+git checkout <브랜치명>
+```
+
+브랜치명 규칙: `type/이슈번호-짧은-설명`
+
+### 3. 구현
+
+- 작업 범위는 이슈에 명시된 내용만. 범위 밖 리팩토링·추가 기능 금지.
+- API 함수(`api/`) → 훅(`hooks/`) → 컴포넌트(`components/`) 순으로 작업.
+- 의존성 방향 준수: `app → features → shared`. `shared`는 `features` import 금지.
+
+### 4. 사용자에게 요약
+
+구현 완료 후 무엇을 만들었는지 간략히 설명한다.  
+변경된 파일, 주요 결정 사항, 남은 한계 등을 포함.
+
+### 5. 빌드 확인
+
+```bash
+npm run build
+```
+
+`tsc -b`(타입 검사) + Vite 번들 빌드를 동시에 수행.  
+에러 없이 통과해야 커밋한다.
+
+### 6. 커밋 & 푸시
+
+```bash
+git add <변경파일...>
+git commit -m "[Type] 메시지"
+git push origin <브랜치명>
+```
+
+`git add .` 사용 금지. 변경 파일을 명시적으로 지정.
+
+### 7. PR 생성
+
+```bash
+gh pr create --title "..." --body "..."
+```
+
+PR 본문: Summary(변경 내용) + Test plan(테스트 항목 체크리스트).
+
+---
+
+### 주의 사항
+
+- **명세서 먼저**: API 연동 작업 시 엔드포인트·타입을 사전에 확인. 추정으로 구현 금지.
+- **Mock 데이터 필수**: API 연동 작업 시 반드시 `src/mocks/handlers.ts`에 MSW 핸들러도 함께 추가한다. 실제 백엔드 없이도 기능을 테스트할 수 있어야 한다.
+- **빌드 통과 필수**: TypeScript 에러나 ESLint 에러가 있으면 커밋하지 않는다.
+- **커밋은 명시적 요청 시에만**: 사용자가 "git에 올려줘" 등을 말하기 전까지 커밋하지 않는다.
