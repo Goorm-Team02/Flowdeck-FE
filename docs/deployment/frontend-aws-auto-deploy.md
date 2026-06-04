@@ -23,10 +23,14 @@
 | `FRONTEND_BASE_PATH` | `/var/www` | 기본 배포 루트. 생략하면 `/var/www` |
 | `FRONTEND_DEV_DEPLOY_PATH` | `/var/www/frontend-dev/app` | dev 배포 경로. 생략하면 `$FRONTEND_BASE_PATH/frontend-dev/app` |
 | `FRONTEND_PROD_DEPLOY_PATH` | `/var/www/frontend-prod/app` | prod 배포 경로. 생략하면 `$FRONTEND_BASE_PATH/frontend-prod/app` |
-| `VITE_API_BASE_URL_DEV` | `https://dev-api.example.com` | dev 백엔드 API base URL |
-| `VITE_WS_URL_DEV` | `wss://dev-api.example.com/ws` | dev WebSocket URL |
-| `VITE_API_BASE_URL_PROD` | `https://api.example.com` | prod 백엔드 API base URL |
-| `VITE_WS_URL_PROD` | `wss://api.example.com/ws` | prod WebSocket URL |
+| `VITE_API_BASE_URL_DEV` | `http://54.180.241.193:8081` | dev 백엔드 API base URL |
+| `VITE_WS_URL_DEV` | `ws://54.180.241.193:8081/ws` | dev WebSocket URL |
+| `VITE_API_BASE_URL_PROD` | `http://54.180.241.193:8080` | prod 백엔드 API base URL |
+| `VITE_WS_URL_PROD` | `ws://54.180.241.193:8080/ws` | prod WebSocket URL |
+
+정적 파일은 EC2에서 서빙되지만, JavaScript는 사용자의 브라우저에서 실행됩니다.
+따라서 프론트 빌드에 `localhost`가 들어가면 EC2가 아니라 접속자 PC의 `localhost`로 요청합니다.
+같은 origin의 `/api`, `/ws`를 쓰려면 Nginx에서 해당 경로를 백엔드 컨테이너로 proxy해야 합니다.
 
 ## EC2 사전 준비
 
@@ -77,4 +81,3 @@ sudo systemctl reload nginx
 1. GitHub Actions의 `Deploy Frontend to EC2` 워크플로를 수동 실행하거나 `develop` 또는 `main` 브랜치에 push합니다.
 2. Actions 로그에서 `Build`와 `Deploy dist to EC2` 단계가 통과했는지 확인합니다.
 3. 브라우저에서 dev 또는 prod 프론트 도메인에 접속해 새 화면이 반영됐는지 확인합니다.
-

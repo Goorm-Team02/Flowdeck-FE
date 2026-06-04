@@ -156,8 +156,9 @@ export default function ChatPanel() {
   const sendMessage = () => {
     const text = input.trim()
     if (!text || isViewer) return
-    publishMessage(text)
-    setInput('')
+    if (publishMessage(text)) {
+      setInput('')
+    }
   }
 
   const handleDeleteConfirm = (messageId: number) => {

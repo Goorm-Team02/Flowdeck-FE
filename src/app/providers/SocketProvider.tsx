@@ -31,6 +31,7 @@ export function SocketProvider({ children }: Props) {
       console.error('[STOMP] ws error', event)
       setStatus('disconnected')
     }
+    clientRef.current.onWebSocketClose = () => setStatus('disconnected')
 
     setStatus('connecting')
     clientRef.current.activate()
@@ -42,13 +43,25 @@ export function SocketProvider({ children }: Props) {
   }, [setStatus])
 
   const subscribe = useCallback(
-    (topic: string, callback: (msg: IMessage) => void): StompSubscription | undefined =>
-      clientRef.current.subscribe(topic, callback),
+    (topic: string, callback: (msg: IMessage) => void): StompSubscription | undefined => {
+      if (!clientRef.current.connected) {
+        console.warn('[STOMP] subscribe skipped because socket is not connected', topic)
+        return undefined
+      }
+
+      return clientRef.current.subscribe(topic, callback)
+    },
     [],
   )
 
   const publish = useCallback((destination: string, body: unknown) => {
+    if (!clientRef.current.connected) {
+      console.warn('[STOMP] publish skipped because socket is not connected', destination)
+      return false
+    }
+
     clientRef.current.publish({ destination, body: JSON.stringify(body) })
+    return true
   }, [])
 
   return (
