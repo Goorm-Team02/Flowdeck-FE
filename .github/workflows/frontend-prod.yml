@@ -28,6 +28,7 @@ jobs:
             --comment "Deploy Flowdeck frontend prod" \
             --parameters 'commands=[
               "set -e",
+              "git config --global --add safe.directory /opt/flowdeck/frontend-prod/app",
               "cd /opt/flowdeck/frontend-prod/app",
               "git fetch origin main",
               "git reset --hard origin/main",
