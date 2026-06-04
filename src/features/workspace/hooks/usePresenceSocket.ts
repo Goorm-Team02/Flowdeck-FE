@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 
 import { useSetAtom } from 'jotai'
 
@@ -12,11 +12,6 @@ import { presenceAtom } from '../stores/presenceAtom'
 export function usePresenceSocket(projectId: string) {
   const setPresence = useSetAtom(presenceAtom)
   const { publish, status } = useSocketClient()
-  const publishRef = useRef(publish)
-
-  useEffect(() => {
-    publishRef.current = publish
-  })
 
   useEffect(() => {
     if (status !== 'connected') return
@@ -25,12 +20,9 @@ export function usePresenceSocket(projectId: string) {
 
     const id = setInterval(() => {
       publish(DESTINATIONS.PRESENCE_HEARTBEAT(projectId), {})
-    }, 30_000)
+    }, 10_000)
 
-    return () => {
-      clearInterval(id)
-      publishRef.current(DESTINATIONS.PRESENCE_LEAVE(projectId), {})
-    }
+    return () => clearInterval(id)
   }, [projectId, publish, status])
 
   useSubscription(TOPICS.PRESENCE(projectId), (msg) => {

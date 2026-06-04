@@ -17,7 +17,6 @@ export const DESTINATIONS = {
   MESSAGE_SEND: (projectId: string) => `/app/projects/${projectId}/messages`,
   PRESENCE_JOIN: (projectId: string) => `/app/projects/${projectId}/presence/join`,
   PRESENCE_HEARTBEAT: (projectId: string) => `/app/projects/${projectId}/presence/heartbeat`,
-  PRESENCE_LEAVE: (projectId: string) => `/app/projects/${projectId}/presence/leave`,
   FILE_EDITING_START: (projectId: string, fileId: number) =>
     `/app/projects/${projectId}/files/${fileId}/editing/start`,
   FILE_EDITING_HEARTBEAT: (projectId: string, fileId: number) =>
