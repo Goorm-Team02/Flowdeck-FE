@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 
+import { avatarColor } from '../lib/avatarColor'
 import { memberModalOpenAtom } from '../stores/memberModalAtom'
 import { editorContentAtom, openFileNameAtom } from '../stores/openFileAtom'
 import { presenceAtom } from '../stores/presenceAtom'
@@ -21,15 +22,6 @@ const PISTON_LANGS: Record<string, string> = {
   rb: 'ruby',
   php: 'php',
 }
-
-const AVATAR_COLORS = [
-  'bg-accent',
-  'bg-purple-500',
-  'bg-teal-500',
-  'bg-orange-500',
-  'bg-rose-500',
-  'bg-indigo-500',
-]
 
 const MAX_AVATARS = 3
 
@@ -85,7 +77,7 @@ export default function TopBar() {
                   <div
                     key={m.userId}
                     title={m.userName}
-                    className={`w-7 h-7 rounded-full ${AVATAR_COLORS[i % AVATAR_COLORS.length]} flex items-center justify-center text-white text-[10px] font-bold ring-2 ring-bg-secondary`}
+                    className={`w-7 h-7 rounded-full ${avatarColor(m.userId)} flex items-center justify-center text-white text-[10px] font-bold ring-2 ring-bg-secondary`}
                     style={{ zIndex: MAX_AVATARS - i }}
                   >
                     {m.userName.slice(0, 2)}
