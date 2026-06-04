@@ -1,12 +1,16 @@
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 
+import { useSetAtom } from 'jotai'
+
 import { useFileSearch } from '../hooks/useFileSearch'
+import { openFileIdAtom } from '../stores/openFileAtom'
 
 export default function SearchPanel() {
   const { projectId = '' } = useParams<{ projectId: string }>()
   const [query, setQuery] = useState('')
   const { data: results, isLoading, isFetching } = useFileSearch(projectId, query)
+  const setOpenFileId = useSetAtom(openFileIdAtom)
 
   return (
     <div className="w-56 flex flex-col bg-bg-secondary border-r border-border shrink-0 overflow-hidden">
@@ -68,6 +72,7 @@ export default function SearchPanel() {
               return (
                 <button
                   key={result.id}
+                  onClick={() => setOpenFileId(result.id)}
                   className="w-full flex items-center gap-1.5 px-3 py-1.5 hover:bg-bg-hover text-left"
                 >
                   <svg

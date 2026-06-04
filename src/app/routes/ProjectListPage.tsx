@@ -244,7 +244,7 @@ export default function ProjectListPage() {
       {/* Top Header */}
       <header id="app_header" className="h-14 bg-bg-secondary border-b border-border flex items-center justify-between px-6 shrink-0">
         <div className="flex items-center gap-4">
-          <img src="/favicon.svg" alt="Flowdeck" className="w-8 h-8" />
+          <img src="/logo.png" alt="Flowdeck" className="w-8 h-8" />
           <h1 className="text-lg font-semibold tracking-tight text-text-primary flex items-center gap-2">
             Flowdeck 
             <span className="text-[10px] bg-accent/20 text-accent font-semibold px-2 py-0.5 rounded-full border border-accent/30">
