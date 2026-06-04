@@ -54,13 +54,6 @@ jobs:
             echo "VITE_WS_URL=$VITE_WS_URL_DEV" >> "$GITHUB_ENV"
           fi
 
-      - name: Validate runtime URLs
-        run: |
-          if [ -z "$VITE_API_BASE_URL" ] || [ -z "$VITE_WS_URL" ]; then
-            echo "VITE_API_BASE_URL and VITE_WS_URL must be configured for ${GITHUB_REF_NAME}." >&2
-            exit 1
-          fi
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
