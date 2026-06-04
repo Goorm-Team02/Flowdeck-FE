@@ -59,9 +59,7 @@ export default function LoginPage() {
         className="w-full max-w-md rounded-xl bg-zinc-900 p-8 shadow-2xl border border-zinc-800"
       >
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 w-12 h-12 bg-indigo-600 rounded-lg flex items-center justify-center font-bold text-white text-2xl shadow-lg shadow-indigo-600/20">
-            F
-          </div>
+          <img src="/logo.png" alt="Flowdeck" className="mx-auto mb-4 w-14 h-14" />
           <h1 className="text-3xl font-bold text-white tracking-tight">Flowdeck 로그인</h1>
           <p className="mt-2 text-zinc-400 text-sm tracking-wide">
             실시간 협업 웹 개발 IDE 플랫폼에 로그인하세요
