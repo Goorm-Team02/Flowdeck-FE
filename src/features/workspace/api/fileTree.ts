@@ -24,9 +24,14 @@ export async function getFileTree(projectId: string): Promise<FileNode[]> {
 }
 
 export async function searchFiles(projectId: string, keyword: string): Promise<FileSearchResult[]> {
-  const res = await apiClient.get<ApiResponse<FileSearchResult[]>>(
+  const res = await apiClient.get<ApiResponse<Record<string, unknown>[]>>(
     `/api/projects/${projectId}/files/search`,
     { params: { keyword } },
   )
-  return res.data.data
+  return (res.data.data ?? []).map((raw) => ({
+    id: (raw.fileId ?? raw.id) as number,
+    name: raw.name as string,
+    type: raw.type as FileSearchResult['type'],
+    path: raw.path as string,
+  }))
 }

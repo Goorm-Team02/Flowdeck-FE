@@ -12,14 +12,14 @@ export default function WorkspacePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const { isLoggedIn } = useAuthStore();
+  const { isLoggedIn, isLoading: isAuthLoading } = useAuthStore();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!isLoggedIn) {
+    if (!isAuthLoading && !isLoggedIn) {
       navigate("/login");
     }
-  }, [isLoggedIn, navigate]);
+  }, [isAuthLoading, isLoggedIn, navigate]);
 
   const loadWorkspaceData = async () => {
     if (!projectId) return;
