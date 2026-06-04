@@ -8,7 +8,7 @@ export function usePublishMessage(projectId: string) {
 
   return useCallback(
     (content: string) => {
-      publish(DESTINATIONS.MESSAGE_SEND(projectId), { content })
+      return publish(DESTINATIONS.MESSAGE_SEND(projectId), { content })
     },
     [projectId, publish],
   )

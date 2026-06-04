@@ -1,6 +1,25 @@
 import { Client } from '@stomp/stompjs'
 
-const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8080/ws'
+function toWebSocketUrl(url: string): string {
+  const parsed = new URL(url, window.location.origin)
+  parsed.protocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:'
+  parsed.pathname = '/ws'
+  parsed.search = ''
+  parsed.hash = ''
+  return parsed.toString()
+}
+
+function resolveWebSocketUrl(): string {
+  const explicitWsUrl = import.meta.env.VITE_WS_URL
+  if (explicitWsUrl) return explicitWsUrl
+
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL
+  if (apiBaseUrl) return toWebSocketUrl(apiBaseUrl)
+
+  return toWebSocketUrl(window.location.origin)
+}
+
+const WS_URL = resolveWebSocketUrl()
 
 export function createStompClient(getToken: () => string | null): Client {
   return new Client({
