@@ -47,7 +47,7 @@ export default function ProjectListPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   // User Profile
-  const { user, isLoggedIn, logout, updateProfile, deleteAccount } = useAuthStore();
+  const { user, isLoggedIn, isLoading: isAuthLoading, logout, updateProfile, deleteAccount } = useAuthStore();
   const [profileName, setProfileName] = useState("");
   const [isSavingName, setIsSavingName] = useState(false);
 
@@ -63,12 +63,12 @@ export default function ProjectListPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!isLoggedIn) {
+    if (!isAuthLoading && !isLoggedIn) {
       navigate("/login");
-    } else if (user?.name) {
+    } else if (isLoggedIn && user?.name) {
       setProfileName(user.name);
     }
-  }, [isLoggedIn, user, navigate]);
+  }, [isAuthLoading, isLoggedIn, user, navigate]);
 
   // Load All Projects along with their Member structures
   const syncServerProjects = async () => {
