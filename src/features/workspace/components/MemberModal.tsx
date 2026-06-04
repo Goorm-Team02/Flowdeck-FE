@@ -6,6 +6,7 @@ import { useAtom, useAtomValue } from 'jotai'
 import { currentUserAtom } from '@/features/auth/stores/currentUserAtom'
 import { isApiError, isNetworkError } from '@/shared/api/errors'
 
+import { avatarColor } from '../lib/avatarColor'
 import { isLastOwner, useCurrentMemberRole } from '../hooks/useCurrentMemberRole'
 import { useInviteMember } from '../hooks/useInviteMember'
 import { useLeaveProject } from '../hooks/useLeaveProject'
@@ -21,20 +22,6 @@ type ConfirmState =
   | { type: 'leave' }
   | null
 
-const AVATAR_COLORS = [
-  'bg-teal-500',
-  'bg-purple-500',
-  'bg-rose-500',
-  'bg-amber-500',
-  'bg-indigo-500',
-  'bg-cyan-500',
-  'bg-green-500',
-  'bg-orange-500',
-]
-
-function avatarColor(memberId: number): string {
-  return AVATAR_COLORS[memberId % AVATAR_COLORS.length]
-}
 
 const ROLE_BADGE: Record<MemberRole, { label: string; className: string }> = {
   OWNER: {
