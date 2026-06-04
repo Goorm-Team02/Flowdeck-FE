@@ -33,9 +33,6 @@ jobs:
               "git reset --hard origin/main",
               "npm install",
               "npm run build",
-              "sudo mkdir -p /var/www/flowdeck/frontend-prod",
-              "sudo rm -rf /var/www/flowdeck/frontend-prod/*",
-              "sudo cp -r dist/* /var/www/flowdeck/frontend-prod/",
               "sudo nginx -t",
               "sudo systemctl reload nginx"
             ]' \
