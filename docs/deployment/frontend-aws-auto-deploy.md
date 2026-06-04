@@ -23,14 +23,14 @@
 | `FRONTEND_BASE_PATH` | `/var/www` | 기본 배포 루트. 생략하면 `/var/www` |
 | `FRONTEND_DEV_DEPLOY_PATH` | `/var/www/frontend-dev/app` | dev 배포 경로. 생략하면 `$FRONTEND_BASE_PATH/frontend-dev/app` |
 | `FRONTEND_PROD_DEPLOY_PATH` | `/var/www/frontend-prod/app` | prod 배포 경로. 생략하면 `$FRONTEND_BASE_PATH/frontend-prod/app` |
-| `VITE_API_BASE_URL_DEV` | `http://54.180.241.193:8081` | dev 백엔드 API base URL |
-| `VITE_WS_URL_DEV` | `ws://54.180.241.193:8081/ws` | dev WebSocket URL |
-| `VITE_API_BASE_URL_PROD` | `http://54.180.241.193:8080` | prod 백엔드 API base URL |
-| `VITE_WS_URL_PROD` | `ws://54.180.241.193:8080/ws` | prod WebSocket URL |
+| `VITE_API_BASE_URL_DEV` | 빈 값 | dev API를 같은 origin의 `/api`로 호출하려면 비워둡니다. |
+| `VITE_WS_URL_DEV` | 빈 값 | dev WebSocket을 같은 origin의 `/ws`로 연결하려면 비워둡니다. |
+| `VITE_API_BASE_URL_PROD` | 빈 값 | prod API를 같은 origin의 `/api`로 호출하려면 비워둡니다. |
+| `VITE_WS_URL_PROD` | 빈 값 | prod WebSocket을 같은 origin의 `/ws`로 연결하려면 비워둡니다. |
 
 정적 파일은 EC2에서 서빙되지만, JavaScript는 사용자의 브라우저에서 실행됩니다.
 따라서 프론트 빌드에 `localhost`가 들어가면 EC2가 아니라 접속자 PC의 `localhost`로 요청합니다.
-같은 origin의 `/api`, `/ws`를 쓰려면 Nginx에서 해당 경로를 백엔드 컨테이너로 proxy해야 합니다.
+현재 배포처럼 Nginx가 `/api`, `/ws`를 백엔드로 proxy하면 FE 배포 URL secret은 비워두는 것이 맞습니다.
 
 ## EC2 사전 준비
 
